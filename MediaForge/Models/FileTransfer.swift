@@ -50,7 +50,7 @@ enum TransferStatus: Equatable {
             return "Paused"
         case .failed(let error):
             if let transferError = error as? FileTransferManager.TransferError {
-                return "Failed: \(transferError.localizedDescription)"
+                return "Failed: \(transferError.errorDescription ?? transferError.localizedDescription)"
             } else {
                 return "Failed: \(error.localizedDescription)"
             }
@@ -71,6 +71,9 @@ class FileTransfer: Identifiable, ObservableObject {
     @Published var estimatedTimeRemaining: TimeInterval?
     @Published var totalBytesToTransfer: Int64 = 0
     @Published var bytesTransferred: Int64 = 0
+    @Published var transferStatus: String = ""
+    @Published var completedFiles: Int = 0
+    @Published var totalFiles: Int = 0
     
     var startTime: Date?
     var endTime: Date?
@@ -167,7 +170,7 @@ class FileTransfer: Identifiable, ObservableObject {
         // Detaylı hata mesajını konsola bas
         print("Transfer failed: \(error.localizedDescription)")
         if let transferError = error as? FileTransferManager.TransferError {
-            print("Details: \(transferError.errorDescription)")
+            print("Details: \(transferError.failureReason ?? "Unknown error")")
         }
     }
 } 

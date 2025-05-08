@@ -183,33 +183,37 @@ class MediaForgeViewModel: ObservableObject {
         let userDocuments = Disk(
             name: "Documents", 
             path: "\(homeDirectory)/Documents", 
+            devicePath: "/dev/disk1s1", 
             icon: "folder", 
             totalSpace: 1_000_000_000_000, 
-            usedSpace: 100_000_000_000
+            freeSpace: 900_000_000_000
         )
         
         let userDesktop = Disk(
             name: "Desktop", 
             path: "\(homeDirectory)/Desktop", 
+            devicePath: "/dev/disk1s1", 
             icon: "desktopcomputer", 
             totalSpace: 1_000_000_000_000, 
-            usedSpace: 50_000_000_000
+            freeSpace: 950_000_000_000
         )
         
         let userDownloads = Disk(
             name: "Downloads", 
             path: "\(homeDirectory)/Downloads", 
+            devicePath: "/dev/disk1s1", 
             icon: "arrow.down.circle", 
             totalSpace: 1_000_000_000_000, 
-            usedSpace: 200_000_000_000
+            freeSpace: 800_000_000_000
         )
         
         let tempdisk = Disk(
             name: "External Drive", 
             path: "/tmp", 
+            devicePath: "/dev/disk2s1", 
             icon: "externaldrive.fill", 
             totalSpace: 2_000_000_000_000, 
-            usedSpace: 500_000_000_000
+            freeSpace: 1_500_000_000_000
         )
         
         return [userDocuments, userDesktop, userDownloads, tempdisk]
@@ -255,6 +259,21 @@ class MediaForgeViewModel: ObservableObject {
         if !destinations.contains(where: { $0.id == disk.id }) {
             destinations.append(disk)
         }
+    }
+    
+    /// Set a source folder for a disk
+    func setSourceFolder(for disk: Disk, path: String?) {
+        disk.setSourceFolder(path)
+    }
+    
+    /// Set a destination folder for a disk
+    func setDestinationFolder(for disk: Disk, path: String?) {
+        disk.setDestinationFolder(path)
+    }
+    
+    /// Set a label for a disk
+    func setLabel(for disk: Disk, label: String?) {
+        disk.setLabel(label ?? "")
     }
     
     /// Request user permission for a disk
@@ -403,6 +422,21 @@ class MediaForgeViewModel: ObservableObject {
                     transfer.updateProgress(bytesTransferred: bytesTransferred, 
                                            totalBytes: totalBytes, 
                                            currentFile: currentFile)
+                    
+                    // Extract file count information if available
+                    if let fileCountRange = currentFile.range(of: "\\d+/\\d+", options: .regularExpression) {
+                        let countInfo = String(currentFile[fileCountRange])
+                        let parts = countInfo.split(separator: "/")
+                        if parts.count == 2, 
+                           let completed = Int(parts[0]), 
+                           let total = Int(parts[1]) {
+                            transfer.completedFiles = completed
+                            transfer.totalFiles = total
+                        }
+                    }
+                    
+                    // Set transfer status message
+                    transfer.transferStatus = currentFile
                     
                     // Update status
                     if transfer.status == .preparing {

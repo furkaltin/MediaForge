@@ -7,7 +7,7 @@ import AppKit
 class FileTransferManager {
     
     /// Error types that can occur during transfer
-    enum TransferError: Error {
+    enum TransferError: Error, LocalizedError {
         case fileNotFound
         case destinationNotWritable
         case copyFailed(Error)
@@ -17,7 +17,7 @@ class FileTransferManager {
         case destinationPathInvalid
         case permissionDenied
         
-        var localizedDescription: String {
+        var errorDescription: String? {
             switch self {
             case .fileNotFound:
                 return "File not found"
@@ -38,7 +38,7 @@ class FileTransferManager {
             }
         }
         
-        var errorDescription: String {
+        var failureReason: String? {
             switch self {
             case .fileNotFound:
                 return "The file could not be found at the specified location. Please verify the path."
@@ -315,7 +315,7 @@ class FileTransferManager {
             return progress
         }
         
-        // Calculate source checksum
+        // Get source file name for progress updates
         let sourceFileName = URL(fileURLWithPath: sourcePath).lastPathComponent
         progressHandler(0, fileSize, sourceFileName)
         
@@ -324,7 +324,7 @@ class FileTransferManager {
             let sourceURL = URL(fileURLWithPath: sourcePath)
             
             do {
-                // Simple copy method first (safer for testing)
+                // Try simple copy method first
                 do {
                     let sourceData = try Data(contentsOf: sourceURL)
                     try sourceData.write(to: destinationURL)
@@ -342,6 +342,7 @@ class FileTransferManager {
                     return
                 } catch {
                     print("Simple copy failed, trying stream method: \(error.localizedDescription)")
+                    // Continue to the streaming method below
                 }
                 
                 // Calculate source checksum
@@ -467,201 +468,234 @@ class FileTransferManager {
         var skippedItems: [String] = [] // Track skipped items
         
         DispatchQueue.global(qos: .userInitiated).async {
-            do {
-                // Create recursive function to find all files
-                func addFiles(in directory: String) throws {
-                    do {
-                        let contents = try FileManager.default.contentsOfDirectory(atPath: directory)
-                        for item in contents {
-                            // Skip system directories and hidden files that cause permission issues
-                            if item.hasPrefix(".") || item == "Trashes" || item == ".Trashes" {
-                                print("Skipping system file/directory: \(item)")
-                                skippedItems.append("\(directory)/\(item)")
-                                continue
-                            }
-                            
-                            // Skip known camera system/metadata files
-                            let skipFiles = ["SONYCARD.IND", "DATABASE.BIN", "MEDIAPRO.XML", "AVIN0001.INP", "AVIN0001.BNP", "AVIN0001.INT"]
-                            if skipFiles.contains(item) {
-                                print("Skipping camera system file: \(item)")
-                                skippedItems.append("\(directory)/\(item)")
-                                continue
-                            }
-                            
-                            let itemPath = directory + "/" + item
-                            var isDir: ObjCBool = false
-                            
-                            if FileManager.default.fileExists(atPath: itemPath, isDirectory: &isDir) {
-                                if isDir.boolValue {
-                                    do {
-                                        try addFiles(in: itemPath)
-                                    } catch {
-                                        // Log the error but continue with other directories
-                                        print("Skipping directory that couldn't be accessed: \(itemPath)")
-                                        print("Error: \(error.localizedDescription)")
-                                        skippedItems.append(itemPath)
-                                    }
+            // Create recursive function to find all files
+            func addFiles(in directory: String) -> Bool {
+                do {
+                    let contents = try FileManager.default.contentsOfDirectory(atPath: directory)
+                    for item in contents {
+                        // Skip system directories and hidden files that cause permission issues
+                        if item.hasPrefix(".") || item == "Trashes" || item == ".Trashes" {
+                            print("Skipping system file/directory: \(item)")
+                            skippedItems.append("\(directory)/\(item)")
+                            continue
+                        }
+                        
+                        // Skip known camera system/metadata files
+                        let skipFiles = ["SONYCARD.IND", "DATABASE.BIN", "MEDIAPRO.XML", "AVIN0001.INP", "AVIN0001.BNP", "AVIN0001.INT"]
+                        if skipFiles.contains(item) {
+                            print("Skipping camera system file: \(item)")
+                            skippedItems.append("\(directory)/\(item)")
+                            continue
+                        }
+                        
+                        let itemPath = directory + "/" + item
+                        var isDir: ObjCBool = false
+                        
+                        if FileManager.default.fileExists(atPath: itemPath, isDirectory: &isDir) {
+                            if isDir.boolValue {
+                                // No longer using try/throw here
+                                if !addFiles(in: itemPath) {
+                                    // Log the error but continue with other directories
+                                    print("Skipping directory that couldn't be accessed: \(itemPath)")
+                                    skippedItems.append(itemPath)
+                                }
+                            } else {
+                                // Only include image files by checking extension
+                                let fileExtension = (itemPath as NSString).pathExtension.lowercased()
+                                let imageExtensions = ["jpg", "jpeg", "arw", "cr2", "cr3", "nef", "raw", "dng", "raf", "heic", "png", "tif", "tiff"]
+                                
+                                if imageExtensions.contains(fileExtension) {
+                                    filesToCopy.append(itemPath)
+                                    let itemSize = DiskManager.getSize(of: itemPath)
+                                    totalSize += itemSize
+                                    print("Adding image file to copy list: \(itemPath) (\(itemSize) bytes)")
                                 } else {
-                                    // Only include image files by checking extension
-                                    let fileExtension = (itemPath as NSString).pathExtension.lowercased()
-                                    let imageExtensions = ["jpg", "jpeg", "arw", "cr2", "cr3", "nef", "raw", "dng", "raf", "heic", "png", "tif", "tiff"]
-                                    
-                                    if imageExtensions.contains(fileExtension) {
-                                        filesToCopy.append(itemPath)
-                                        let itemSize = DiskManager.getSize(of: itemPath)
-                                        totalSize += itemSize
-                                        print("Adding image file to copy list: \(itemPath) (\(itemSize) bytes)")
-                                    } else {
-                                        print("Skipping non-image file: \(itemPath)")
-                                        skippedItems.append(itemPath)
-                                    }
+                                    print("Skipping non-image file: \(itemPath)")
+                                    skippedItems.append(itemPath)
                                 }
                             }
                         }
-                    } catch {
-                        print("Error scanning directory \(directory): \(error.localizedDescription)")
-                        // Don't throw here, just report the error and continue
-                        if directory != sourcePath {
-                            print("Skipping inaccessible directory: \(directory)")
-                            skippedItems.append(directory)
-                        } else {
-                            // If the source directory itself can't be accessed, we should throw
-                            throw error
-                        }
                     }
-                }
-                
-                // Scan the source directory
-                try addFiles(in: sourcePath)
-                
-                if filesToCopy.isEmpty {
-                    if skippedItems.isEmpty {
-                        print("No image files found to copy in \(sourcePath)")
-                        completionHandler(.failure(.fileNotFound))
-                    } else {
-                        print("No image files found to copy. \(skippedItems.count) items were skipped due to filtering or permissions.")
-                        let error = NSError(domain: "FileTransferError", 
-                                           code: -1, 
-                                           userInfo: [NSLocalizedDescriptionKey: "No image files found. Non-image files were skipped."])
-                        completionHandler(.failure(.copyFailed(error)))
-                    }
-                    return
-                }
-                
-                print("Found \(filesToCopy.count) image files to copy, total size: \(totalSize) bytes")
-                if !skippedItems.isEmpty {
-                    print("\(skippedItems.count) items were skipped (non-image files or permission restrictions)")
-                }
-                
-                // Report initial progress
-                progressHandler(0, totalSize, "Preparing to copy \(filesToCopy.count) image files")
-                
-                // Create destination directory if needed
-                do {
-                    try FileManager.default.createDirectory(atPath: destinationPath, withIntermediateDirectories: true)
+                    return true
                 } catch {
-                    print("Failed to create destination directory: \(error.localizedDescription)")
-                    completionHandler(.failure(.destinationPathInvalid))
+                    print("Error scanning directory \(directory): \(error.localizedDescription)")
+                    // Don't throw here, just report the error and return false
+                    if directory != sourcePath {
+                        print("Skipping inaccessible directory: \(directory)")
+                        skippedItems.append(directory)
+                        return false
+                    } else {
+                        // If the source directory itself can't be accessed, propagate the error
+                        completionHandler(.failure(.copyFailed(error)))
+                        return false
+                    }
+                }
+            }
+            
+            // Now call our recursive function
+            let scanSuccess = addFiles(in: sourcePath)
+            if !scanSuccess && filesToCopy.isEmpty {
+                // If scanning failed and we didn't find any files, exit
+                return
+            }
+            
+            if filesToCopy.isEmpty {
+                if skippedItems.isEmpty {
+                    print("No image files found to copy in \(sourcePath)")
+                    completionHandler(.failure(.fileNotFound))
+                } else {
+                    print("No image files found to copy. \(skippedItems.count) items were skipped due to filtering or permissions.")
+                    let error = NSError(domain: "FileTransferError", 
+                                       code: -1, 
+                                       userInfo: [NSLocalizedDescriptionKey: "No image files found. Non-image files were skipped."])
+                    completionHandler(.failure(.copyFailed(error)))
+                }
+                return
+            }
+            
+            print("Found \(filesToCopy.count) image files to copy, total size: \(totalSize) bytes")
+            if !skippedItems.isEmpty {
+                print("\(skippedItems.count) items were skipped (non-image files or permission restrictions)")
+            }
+            
+            // Report initial progress
+            progressHandler(0, totalSize, "Preparing to copy \(filesToCopy.count) image files")
+            
+            // Create destination directory if needed
+            do {
+                try FileManager.default.createDirectory(atPath: destinationPath, withIntermediateDirectories: true)
+            } catch {
+                print("Failed to create destination directory: \(error.localizedDescription)")
+                completionHandler(.failure(.destinationPathInvalid))
+                return
+            }
+            
+            // Variable to track if any file was successfully copied
+            var anyFilesCopied = false
+            var failedFiles: [String] = []
+            
+            // Copy each file
+            var completedFiles = 0
+            var activeTransfers = 0
+            let maxConcurrentTransfers = 3 // Limit concurrent transfers to avoid overwhelming system
+            
+            // Create a dispatch group to track when all files are done
+            let transferGroup = DispatchGroup()
+            
+            for filePath in filesToCopy {
+                // Check if operation was cancelled
+                if progress.isCancelled {
+                    print("Transfer cancelled by user")
+                    completionHandler(.failure(.cancelled))
                     return
                 }
                 
-                // Variable to track if any file was successfully copied
-                var anyFilesCopied = false
-                var failedFiles: [String] = []
+                // Determine relative path
+                let relativePath = filePath.replacingOccurrences(of: sourcePath, with: "")
+                let destinationFilePath = destinationPath + relativePath
                 
-                // Copy each file
-                for filePath in filesToCopy {
-                    // Check if operation was cancelled
+                // Create subdirectory if needed
+                let destinationFileDir = URL(fileURLWithPath: destinationFilePath).deletingLastPathComponent().path
+                
+                do {
+                    try FileManager.default.createDirectory(atPath: destinationFileDir, withIntermediateDirectories: true)
+                } catch {
+                    print("Failed to create subdirectory \(destinationFileDir): \(error.localizedDescription)")
+                    failedFiles.append(filePath)
+                    continue // Skip this file but continue with others
+                }
+                
+                // Copy the file
+                let fileSize = DiskManager.getSize(of: filePath)
+                let fileName = URL(fileURLWithPath: filePath).lastPathComponent
+                
+                // Create a file-level progress handler
+                let fileProgressHandler: (Int64, Int64, String) -> Void = { bytesTransferred, totalBytes, fileName in
+                    // Calculate the global progress
+                    let adjustedTransferred = copiedSize + bytesTransferred
+                    
+                    // Create a status message showing progress with file counts
+                    let statusMessage = "Copying \(fileName) - \(completedFiles)/\(filesToCopy.count) files"
+                    
+                    progressHandler(adjustedTransferred, totalSize, statusMessage)
+                    
+                    // Update the overall progress
+                    progress.completedUnitCount = Int64(Double(adjustedTransferred) / Double(totalSize) * 100)
+                }
+                
+                print("Copying file: \(filePath) -> \(destinationFilePath)")
+                
+                // Enter the dispatch group before starting the file transfer
+                transferGroup.enter()
+                
+                // Limit concurrent transfers
+                activeTransfers += 1
+                while activeTransfers >= maxConcurrentTransfers {
+                    // Wait briefly before checking again
+                    Thread.sleep(forTimeInterval: 0.1)
+                    // Re-check cancellation during wait
                     if progress.isCancelled {
-                        print("Transfer cancelled by user")
+                        print("Transfer cancelled during throttling")
                         completionHandler(.failure(.cancelled))
                         return
                     }
-                    
-                    // Determine relative path
-                    let relativePath = filePath.replacingOccurrences(of: sourcePath, with: "")
-                    let destinationFilePath = destinationPath + relativePath
-                    
-                    // Create subdirectory if needed
-                    let destinationFileDir = URL(fileURLWithPath: destinationFilePath).deletingLastPathComponent().path
-                    
-                    do {
-                        try FileManager.default.createDirectory(atPath: destinationFileDir, withIntermediateDirectories: true)
-                    } catch {
-                        print("Failed to create subdirectory \(destinationFileDir): \(error.localizedDescription)")
-                        failedFiles.append(filePath)
-                        continue // Skip this file but continue with others
-                    }
-                    
-                    // Copy the file
-                    let fileSize = DiskManager.getSize(of: filePath)
-                    
-                    // Create a file-level progress handler
-                    let fileProgressHandler: (Int64, Int64, String) -> Void = { bytesTransferred, totalBytes, fileName in
-                        // Calculate the global progress
-                        let adjustedTransferred = copiedSize + bytesTransferred
-                        progressHandler(adjustedTransferred, totalSize, fileName)
-                        
-                        // Update the overall progress
-                        progress.completedUnitCount = Int64(Double(adjustedTransferred) / Double(totalSize) * 100)
-                    }
-                    
-                    print("Copying file: \(filePath) -> \(destinationFilePath)")
-                    
-                    // Copy the file
-                    let fileProgress = copyFile(
-                        from: filePath,
-                        to: destinationFilePath,
-                        progressHandler: fileProgressHandler,
-                        completionHandler: { result in
+                }
+                
+                // Copy the file
+                _ = copyFile(
+                    from: filePath,
+                    to: destinationFilePath,
+                    progressHandler: fileProgressHandler,
+                    completionHandler: { result in
+                        // Update tracking variables atomically
+                        DispatchQueue.main.async {
+                            activeTransfers -= 1
+                            
                             switch result {
                             case .success:
                                 // File copied successfully
                                 copiedSize += fileSize
                                 anyFilesCopied = true
-                                print("Successfully copied: \(filePath)")
+                                completedFiles += 1
+                                
+                                // Update the status with new file count
+                                let statusMessage = "Completed \(completedFiles)/\(filesToCopy.count) files"
+                                progressHandler(copiedSize, totalSize, statusMessage)
+                                
+                                print("Successfully copied (\(completedFiles)/\(filesToCopy.count)): \(filePath)")
                             case .failure(let error):
                                 // Handle file copy error
                                 print("Failed to copy \(filePath): \(error.localizedDescription)")
                                 failedFiles.append(filePath)
-                                // Continue with next file rather than failing the entire transfer
                             }
+                            
+                            // Leave the dispatch group when file is complete
+                            transferGroup.leave()
                         }
-                    )
-                    
-                    // Wait for this file to complete
-                    while fileProgress.completedUnitCount < 100 && !progress.isCancelled {
-                        Thread.sleep(forTimeInterval: 0.1)
                     }
-                    
-                    if progress.isCancelled {
-                        print("Transfer cancelled during file copy")
-                        completionHandler(.failure(.cancelled))
-                        return
-                    }
-                }
-                
-                // Report success if any files were copied, even if some failed
-                if anyFilesCopied {
-                    if failedFiles.isEmpty && skippedItems.isEmpty {
-                        print("All image files copied successfully")
-                        completionHandler(.success(true))
-                    } else {
-                        // At least some files were copied, but some failed
-                        print("Transfer partially completed. \(failedFiles.count) files failed to copy. \(skippedItems.count) items were skipped.")
-                        // Return success but with a note that it was partial
-                        completionHandler(.success(true))
-                    }
+                )
+            }
+            
+            // Wait for all transfers to complete
+            transferGroup.wait()
+            
+            // Report success if any files were copied, even if some failed
+            if anyFilesCopied {
+                if failedFiles.isEmpty && skippedItems.isEmpty {
+                    print("All image files copied successfully")
+                    completionHandler(.success(true))
                 } else {
-                    // No files were copied at all
-                    print("Transfer failed: No image files could be copied.")
-                    let error = NSError(domain: "FileTransferError", 
-                                       code: -1, 
-                                       userInfo: [NSLocalizedDescriptionKey: "No image files could be copied. Check permissions."])
-                    completionHandler(.failure(.copyFailed(error)))
+                    // At least some files were copied, but some failed
+                    print("Transfer partially completed. \(failedFiles.count) files failed to copy. \(skippedItems.count) items were skipped.")
+                    // Return success but with a note that it was partial
+                    completionHandler(.success(true))
                 }
-            } catch {
-                print("Directory copy failed: \(error.localizedDescription)")
+            } else {
+                // No files were copied at all
+                print("Transfer failed: No image files could be copied.")
+                let error = NSError(domain: "FileTransferError", 
+                                   code: -1, 
+                                   userInfo: [NSLocalizedDescriptionKey: "No image files could be copied. Check permissions."])
                 completionHandler(.failure(.copyFailed(error)))
             }
         }

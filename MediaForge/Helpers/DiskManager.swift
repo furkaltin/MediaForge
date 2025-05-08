@@ -122,22 +122,60 @@ class DiskManager {
             // Calculate space
             let totalSpace = resourceValues.volumeTotalCapacity ?? 0
             let freeSpace = resourceValues.volumeAvailableCapacity ?? 0
-            let usedSpace = totalSpace - freeSpace
             
-            // Create the disk object
+            // Try to get device path for this volume
+            let devicePath = getDevicePathForVolume(url.path) ?? "/dev/unknown"
+            
+            // Create the disk object with the new initializer
             let disk = Disk(
+                id: UUID().uuidString,
                 name: name,
                 path: url.path,
+                devicePath: devicePath,
                 icon: icon,
                 totalSpace: Int64(totalSpace),
-                usedSpace: Int64(usedSpace)
+                freeSpace: Int64(freeSpace),
+                isRemovable: resourceValues.volumeIsRemovable ?? false
             )
+            
+            // Check if we have full access to this disk
+            disk.hasFullAccess = FileTransferManager.validatePath(url.path)
             
             return disk
         } catch {
             print("Error getting disk properties: \(error.localizedDescription)")
             return nil
         }
+    }
+    
+    /// Try to find the device path for a volume
+    private static func getDevicePathForVolume(_ volumePath: String) -> String? {
+        // Run diskutil to get device info
+        let task = Process()
+        task.launchPath = "/usr/sbin/diskutil"
+        task.arguments = ["info", volumePath]
+        
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        
+        do {
+            try task.run()
+            
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            if let output = String(data: data, encoding: .utf8) {
+                // Parse the output to find device node
+                if let range = output.range(of: "Device Node:") {
+                    let deviceLine = output[range.upperBound...].trimmingCharacters(in: .whitespaces)
+                    if let endOfLine = deviceLine.firstIndex(of: "\n") {
+                        return String(deviceLine[..<endOfLine]).trimmingCharacters(in: .whitespaces)
+                    }
+                }
+            }
+        } catch {
+            print("Error getting device path: \(error.localizedDescription)")
+        }
+        
+        return nil
     }
     
     /// Get disks using low-level IOKit approach (more reliable for external media)
@@ -227,48 +265,27 @@ class DiskManager {
             }
         }
         
-        // Fall back to /Volumes/volumeName if we couldn't find the actual path
-        if mountPath == nil {
-            mountPath = "/Volumes/\(volumeName)"
+        // Only create a Disk if we found the mount path
+        if let mountPath = mountPath {
+            // Get disk capacity and free space
+            let attributes = try? FileManager.default.attributesOfFileSystem(forPath: mountPath)
+            let capacity = attributes?[.systemSize] as? NSNumber ?? 0
+            let freeSpace = attributes?[.systemFreeSize] as? NSNumber ?? 0
+            
+            // Create and return the Disk object
+            return Disk(
+                id: UUID().uuidString,
+                name: volumeName,
+                path: mountPath,
+                devicePath: devicePath,
+                icon: "externaldrive",
+                totalSpace: capacity.int64Value,
+                freeSpace: freeSpace.int64Value,
+                isRemovable: true
+            )
         }
         
-        guard let path = mountPath, FileManager.default.fileExists(atPath: path) else {
-            print("Mount path not found for \(volumeName)")
-            return nil
-        }
-        
-        let fileManager = FileManager.default
-        
-        // Try to get disk statistics
-        var totalSpace: Int64 = 0
-        var usedSpace: Int64 = 0
-        
-        do {
-            let attrs = try fileManager.attributesOfFileSystem(forPath: path)
-            if let size = attrs[.systemSize] as? NSNumber {
-                totalSpace = size.int64Value
-            }
-            if let free = attrs[.systemFreeSize] as? NSNumber {
-                let freeSpace = free.int64Value
-                usedSpace = totalSpace - freeSpace
-            }
-        } catch {
-            // Use default values if we can't get actual size
-            print("Error getting disk attributes: \(error)")
-            totalSpace = 1_000_000_000_000 // 1 TB
-            usedSpace = 0
-        }
-        
-        // Create disk object
-        let disk = Disk(
-            name: volumeName,
-            path: path,
-            icon: "externaldrive.fill.badge",
-            totalSpace: totalSpace,
-            usedSpace: usedSpace
-        )
-        
-        return disk
+        return nil
     }
     
     /// Check if a path exists
