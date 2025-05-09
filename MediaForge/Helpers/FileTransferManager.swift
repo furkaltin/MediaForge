@@ -2,6 +2,7 @@ import Foundation
 import CryptoKit
 import UniformTypeIdentifiers
 import AppKit
+import os.lock
 
 /// Manages file transfer operations
 class FileTransferManager {
@@ -62,7 +63,7 @@ class FileTransferManager {
     
     /// Dictionary to store security-scoped bookmarks for persistent access
     private static var securityScopedBookmarks: [String: Data] = [:]
-    private static let bookmarkQueue = DispatchQueue(label: "com.mediaforge.bookmarkQueue", attributes: .concurrent)
+    private static let bookmarkLock = OSAllocatedUnfairLock() // Use modern lock instead of dispatch queue
     
     /// Initialize important file access configurations
     static func initialize() {
@@ -82,8 +83,8 @@ class FileTransferManager {
             // Create bookmark with security scope
             let bookmarkData = try url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
             
-            // Thread-safe dictionary update
-            bookmarkQueue.async(flags: .barrier) {
+            // Thread-safe dictionary update with unfair lock
+            bookmarkLock.withLock {
                 securityScopedBookmarks[url.path] = bookmarkData
                 saveBookmarks()
             }
@@ -98,10 +99,9 @@ class FileTransferManager {
     
     /// Access a path using security-scoped bookmark
     static func accessViaBookmark(path: String) -> Bool {
-        // Thread-safe dictionary read
-        var bookmarkData: Data?
-        bookmarkQueue.sync {
-            bookmarkData = securityScopedBookmarks[path]
+        // Thread-safe dictionary read with unfair lock
+        let bookmarkData = bookmarkLock.withLock {
+            return securityScopedBookmarks[path]
         }
         
         // Check for existing bookmark
@@ -113,7 +113,7 @@ class FileTransferManager {
                 if isStale {
                     // Update the bookmark if it's stale
                     if let newBookmark = createBookmarkFor(url: url) {
-                        bookmarkQueue.async(flags: .barrier) {
+                        bookmarkLock.withLock {
                             securityScopedBookmarks[path] = newBookmark
                             saveBookmarks()
                         }
@@ -140,9 +140,8 @@ class FileTransferManager {
     
     /// Stop accessing a path using security-scoped bookmark
     static func stopAccessingPath(path: String) {
-        var bookmarkData: Data?
-        bookmarkQueue.sync {
-            bookmarkData = securityScopedBookmarks[path]
+        let bookmarkData = bookmarkLock.withLock {
+            return securityScopedBookmarks[path]
         }
         
         if let bookmarkData = bookmarkData {
@@ -156,18 +155,21 @@ class FileTransferManager {
         }
     }
     
-    /// Save bookmarks to user defaults
+    /// Save bookmarks to user defaults - FİXED for thread safety
     private static func saveBookmarks() {
-        var encodedBookmarks: [String: String] = [:]
-        bookmarkQueue.sync {
-            encodedBookmarks = securityScopedBookmarks.mapValues { data in
-                return data.base64EncodedString()
-            }
+        // Get the encoded bookmarks in a thread-safe way
+        let encodedBookmarks: [String: String] = bookmarkLock.withLock {
+            // Güvenli bir şekilde dictionary'yi mapValues ile dönüştürüyoruz
+            return Dictionary(uniqueKeysWithValues: securityScopedBookmarks.map { key, data in
+                (key, data.base64EncodedString())
+            })
         }
+        
+        // Save to UserDefaults
         UserDefaults.standard.set(encodedBookmarks, forKey: "MediaForgeBookmarks")
     }
     
-    /// Load bookmarks from user defaults
+    /// Load bookmarks from user defaults - FİXED for thread safety
     private static func loadBookmarks() {
         if let encoded = UserDefaults.standard.dictionary(forKey: "MediaForgeBookmarks") as? [String: String] {
             let loadedBookmarks = encoded.compactMapValues { base64String in
@@ -177,7 +179,8 @@ class FileTransferManager {
                 return nil
             }
             
-            bookmarkQueue.async(flags: .barrier) {
+            // Thread-safe update with unfair lock
+            bookmarkLock.withLock {
                 securityScopedBookmarks = loadedBookmarks
             }
         }
