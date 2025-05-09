@@ -1,0 +1,24 @@
+{
+  "source": "/Users/selincaglar/Desktop/MediaForge/MediaForge-1/MediaForge/Views/GradientDiskSelectionView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Coming Soon",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 23
+        }
+      },
+      {
+        "comment": "",
+        "key": "Gradient UI is temporarily disabled",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 28
+        }
+      }
+    ]
+  },
+  "version": 1
+}

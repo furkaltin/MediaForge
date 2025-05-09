@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIconFile</key>
+    <string>icon_1024x1024</string>
+    <key>CFBundleIconFiles</key>
+    <array>
+        <string>icon_16x16</string>
+        <string>icon_32x32</string>
+        <string>icon_64x64</string>
+        <string>icon_128x128</string>
+        <string>icon_256x256</string>
+        <string>icon_512x512</string>
+        <string>icon_1024x1024</string>
+    </array>
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.mediaforge.app</string>
+    <key>CFBundleName</key>
+    <string>MediaForge</string>
+    <key>CFBundleDisplayName</key>
+    <string>MediaForge</string>
+    <key>CFBundleExecutable</key>
+    <string>MediaForge</string>
+    <key>CFBundleVersion</key>
+    <string>1.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>10.15</string>
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright © 2023 MediaForge. All rights reserved.</string>
+</dict>
+</plist> 

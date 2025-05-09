@@ -1,0 +1,40 @@
+{
+  "source": "/Users/selincaglar/Desktop/MediaForge/MediaForge-1/MediaForge/Views/TransferItemView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Cancel transfer",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 161
+        }
+      },
+      {
+        "comment": "",
+        "key": "•",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 133
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld%%",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 187
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld/%lld files",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 300
+        }
+      }
+    ]
+  },
+  "version": 1
+}

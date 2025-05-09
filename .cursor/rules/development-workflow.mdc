@@ -3,3 +3,44 @@ description:
 globs:
 alwaysApply: false
 ---
+# MediaForge Development Workflow
+
+This document outlines the recommended development workflow for MediaForge.
+
+## Development Environment
+
+- macOS development environment with Xcode
+- Python with CairoSVG for asset generation
+- Required dependencies:
+  - Cairo library (`brew install cairo`)
+  - Python packages: `pip install cairosvg pillow`
+
+## Build Process
+
+1. Open the project in Xcode (`MediaForge.xcodeproj`)
+2. Resolve any dependency issues
+3. Build the application (Product > Build)
+
+## Deployment
+
+1. Generate production app icon assets
+2. Build the application for release
+3. Package the application as a Mac app bundle
+4. Test installation and basic functionality
+
+## Troubleshooting
+
+### Common Build Issues
+
+1. **Asset catalog warnings:**
+   - Ensure all AppIcon slots are filled with appropriate size images
+   - Verify that Contents.json references valid filenames
+
+2. **Test failures:**
+   - Check test target configuration
+   - Verify framework linkage
+   - Make sure tests are properly structured
+
+3. **Permission issues:**
+   - File access requires proper entitlements for disk access
+   - Sandbox permissions may need configuration

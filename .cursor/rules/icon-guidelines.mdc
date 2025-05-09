@@ -1,0 +1,41 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# MediaForge Icon Guidelines
+
+MediaForge uses custom-generated icons with specific styles. This document outlines the icon generation process and usage guidelines.
+
+## Icon Style
+
+Current MediaForge icon style:
+- Modern "M" letter design with gradient color scheme
+- Purple-blue color palette
+- Rounded/oval style elements
+- Clean, professional appearance
+
+## Icon Generation Process
+
+1. Create SVG source design in [tmp/MediaForgeIcon/](mdc:tmp/MediaForgeIcon/)
+2. Use CairoSVG Python scripts to generate all required sizes:
+   - [convert_m_exact_icon.py](mdc:tmp/MediaForgeIcon/convert_m_exact_icon.py) for generating all Mac app icon sizes
+3. PNG outputs are placed in the output directory and then copied to:
+   - [MediaForge/Assets.xcassets/AppIcon.appiconset/](mdc:MediaForge/Assets.xcassets/AppIcon.appiconset/)
+
+## Required Icon Sizes
+
+macOS app icons require these specific sizes (both 1x and 2x resolution):
+- 16x16
+- 32x32
+- 64x64
+- 128x128
+- 256x256
+- 512x512
+- 1024x1024 (App Store)
+
+## Tips for Icon Updates
+
+1. When updating icons, ensure all sizes are regenerated
+2. Update the application bundle icon reference
+3. Refresh the system cache with `touch MediaForge.app && killall Dock`

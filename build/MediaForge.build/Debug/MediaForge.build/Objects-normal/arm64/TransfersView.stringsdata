@@ -1,0 +1,160 @@
+{
+  "source": "/Users/selincaglar/Desktop/MediaForge/MediaForge-1/MediaForge/Views/TransfersView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Media Transfers",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 66
+        }
+      },
+      {
+        "comment": "",
+        "key": "Clear Completed",
+        "location": {
+          "startingColumn": 35,
+          "startingLine": 104
+        }
+      },
+      {
+        "comment": "",
+        "key": "Clear Failed",
+        "location": {
+          "startingColumn": 35,
+          "startingLine": 120
+        }
+      },
+      {
+        "comment": "",
+        "key": "Back to Disks",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 138
+        }
+      },
+      {
+        "comment": "",
+        "key": "(%lld)",
+        "location": {
+          "startingColumn": 46,
+          "startingLine": 173
+        }
+      },
+      {
+        "comment": "",
+        "key": "(%lld)",
+        "location": {
+          "startingColumn": 46,
+          "startingLine": 175
+        }
+      },
+      {
+        "comment": "",
+        "key": "(%lld)",
+        "location": {
+          "startingColumn": 46,
+          "startingLine": 177
+        }
+      },
+      {
+        "comment": "",
+        "key": "(%lld)",
+        "location": {
+          "startingColumn": 46,
+          "startingLine": 179
+        }
+      },
+      {
+        "comment": "",
+        "key": "Configure Sources & Destinations",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 256
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld %@",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 299
+        }
+      },
+      {
+        "comment": "",
+        "key": "Transfer Details",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 315
+        }
+      },
+      {
+        "comment": "",
+        "key": "Source",
+        "location": {
+          "startingColumn": 39,
+          "startingLine": 342
+        }
+      },
+      {
+        "comment": "",
+        "key": "Capacity:",
+        "location": {
+          "startingColumn": 42,
+          "startingLine": 356
+        }
+      },
+      {
+        "comment": "",
+        "key": "Destination",
+        "location": {
+          "startingColumn": 39,
+          "startingLine": 376
+        }
+      },
+      {
+        "comment": "",
+        "key": "Free Space:",
+        "location": {
+          "startingColumn": 42,
+          "startingLine": 390
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancel",
+        "location": {
+          "startingColumn": 46,
+          "startingLine": 453
+        }
+      },
+      {
+        "comment": "",
+        "key": "Progress:",
+        "location": {
+          "startingColumn": 46,
+          "startingLine": 469
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld%%",
+        "location": {
+          "startingColumn": 46,
+          "startingLine": 473
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld/%lld files",
+        "location": {
+          "startingColumn": 50,
+          "startingLine": 480
+        }
+      }
+    ]
+  },
+  "version": 1
+}

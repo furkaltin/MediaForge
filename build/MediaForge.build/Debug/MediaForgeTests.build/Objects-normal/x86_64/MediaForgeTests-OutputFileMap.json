@@ -1,0 +1,18 @@
+{
+  "" : {
+    "diagnostics" : "/Users/selincaglar/Desktop/MediaForge/MediaForge-1/build/MediaForge.build/Debug/MediaForgeTests.build/Objects-normal/x86_64/MediaForgeTests-master.dia",
+    "emit-module-dependencies" : "/Users/selincaglar/Desktop/MediaForge/MediaForge-1/build/MediaForge.build/Debug/MediaForgeTests.build/Objects-normal/x86_64/MediaForgeTests-master-emit-module.d",
+    "emit-module-diagnostics" : "/Users/selincaglar/Desktop/MediaForge/MediaForge-1/build/MediaForge.build/Debug/MediaForgeTests.build/Objects-normal/x86_64/MediaForgeTests-master-emit-module.dia",
+    "swift-dependencies" : "/Users/selincaglar/Desktop/MediaForge/MediaForge-1/build/MediaForge.build/Debug/MediaForgeTests.build/Objects-normal/x86_64/MediaForgeTests-master.swiftdeps"
+  },
+  "/Users/selincaglar/Desktop/MediaForge/MediaForge-1/MediaForgeTests/MediaForgeTests.swift" : {
+    "const-values" : "/Users/selincaglar/Desktop/MediaForge/MediaForge-1/build/MediaForge.build/Debug/MediaForgeTests.build/Objects-normal/x86_64/MediaForgeTests.swiftconstvalues",
+    "dependencies" : "/Users/selincaglar/Desktop/MediaForge/MediaForge-1/build/MediaForge.build/Debug/MediaForgeTests.build/Objects-normal/x86_64/MediaForgeTests.d",
+    "diagnostics" : "/Users/selincaglar/Desktop/MediaForge/MediaForge-1/build/MediaForge.build/Debug/MediaForgeTests.build/Objects-normal/x86_64/MediaForgeTests.dia",
+    "index-unit-output-path" : "/MediaForge.build/Debug/MediaForgeTests.build/Objects-normal/x86_64/MediaForgeTests.o",
+    "llvm-bc" : "/Users/selincaglar/Desktop/MediaForge/MediaForge-1/build/MediaForge.build/Debug/MediaForgeTests.build/Objects-normal/x86_64/MediaForgeTests.bc",
+    "object" : "/Users/selincaglar/Desktop/MediaForge/MediaForge-1/build/MediaForge.build/Debug/MediaForgeTests.build/Objects-normal/x86_64/MediaForgeTests.o",
+    "swift-dependencies" : "/Users/selincaglar/Desktop/MediaForge/MediaForge-1/build/MediaForge.build/Debug/MediaForgeTests.build/Objects-normal/x86_64/MediaForgeTests.swiftdeps",
+    "swiftmodule" : "/Users/selincaglar/Desktop/MediaForge/MediaForge-1/build/MediaForge.build/Debug/MediaForgeTests.build/Objects-normal/x86_64/MediaForgeTests~partial.swiftmodule"
+  }
+}

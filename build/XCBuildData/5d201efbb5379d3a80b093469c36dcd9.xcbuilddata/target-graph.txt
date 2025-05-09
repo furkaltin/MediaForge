@@ -1,0 +1,4 @@
+Target dependency graph (2 targets)
+Target 'MediaForgeTests' in project 'MediaForge'
+➜ Explicit dependency on target 'MediaForge' in project 'MediaForge'
+Target 'MediaForge' in project 'MediaForge' (no dependencies)

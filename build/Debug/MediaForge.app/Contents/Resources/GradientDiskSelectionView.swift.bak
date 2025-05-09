@@ -1,0 +1,530 @@
+import SwiftUI
+
+struct GradientDiskSelectionView: View {
+    @EnvironmentObject private var viewModel: MediaForgeViewModel
+    @State private var selectedSourceDisk: Disk? = nil
+    @State private var selectedDestinationDisk: Disk? = nil
+    @State private var showingTransfers = false
+    
+    var body: some View {
+        ZStack {
+            // Vibrant gradient background with slight transparency
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color.pink.opacity(0.8),
+                    Color.purple.opacity(0.8),
+                    Color.blue.opacity(0.8),
+                    Color.green.opacity(0.8)
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .edgesIgnoringSafeArea(.all)
+            
+            // Main content with three panels
+            VStack(spacing: 20) {
+                // Header with app name and view toggle
+                HStack {
+                    Text("MediaForge")
+                        .font(.system(size: 36, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                        .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 2)
+                    
+                    Spacer()
+                    
+                    // Toggle button
+                    if !viewModel.activeTransfers.isEmpty {
+                        Button {
+                            showingTransfers.toggle()
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: showingTransfers ? "folder" : "arrow.triangle.2.circlepath")
+                                    .imageScale(.large)
+                                Text(showingTransfers ? "Disk Selection" : "Active Transfers")
+                                    .font(.system(size: 14, weight: .medium))
+                            }
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 16)
+                            .background(
+                                Capsule()
+                                    .fill(Color.white.opacity(0.2))
+                            )
+                            .overlay(
+                                Capsule()
+                                    .stroke(Color.white.opacity(0.5), lineWidth: 1)
+                            )
+                        }
+                        .foregroundColor(.white)
+                        .buttonStyle(BorderlessButtonStyle())
+                    }
+                }
+                .padding(.horizontal)
+                
+                if showingTransfers {
+                    // Stylish transfer view
+                    VStack(spacing: 16) {
+                        Text("Active Transfers")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                        
+                        ScrollView {
+                            VStack(spacing: 15) {
+                                ForEach(viewModel.activeTransfers) { transfer in
+                                    GradientTransferItem(transfer: transfer)
+                                }
+                                
+                                if !viewModel.completedTransfers.isEmpty {
+                                    Text("Completed")
+                                        .font(.headline)
+                                        .foregroundColor(.white)
+                                        .padding(.top, 15)
+                                    
+                                    ForEach(viewModel.completedTransfers) { transfer in
+                                        GradientTransferItem(transfer: transfer)
+                                    }
+                                }
+                                
+                                if !viewModel.failedTransfers.isEmpty {
+                                    Text("Failed")
+                                        .font(.headline)
+                                        .foregroundColor(.white)
+                                        .padding(.top, 15)
+                                    
+                                    ForEach(viewModel.failedTransfers) { transfer in
+                                        GradientTransferItem(transfer: transfer)
+                                    }
+                                }
+                            }
+                            .padding()
+                        }
+                        .background(
+                            RoundedRectangle(cornerRadius: 20)
+                                .fill(Color.black.opacity(0.2))
+                        )
+                        .padding(.horizontal)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    // Three-panel disk selection layout
+                    HStack(alignment: .top, spacing: 20) {
+                        // Sources panel
+                        VStack {
+                            Text("Sources")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .padding(.bottom, 10)
+                            
+                            if let source = selectedSourceDisk {
+                                // Show selected source
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .fill(Color.blue.opacity(0.3))
+                                        .frame(width: 220, height: 220)
+                                        .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 5)
+                                    
+                                    VStack {
+                                        Image(systemName: source.hasFullAccess ? "externaldrive.fill" : "externaldrive.badge.exclamationmark")
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(width: 80, height: 80)
+                                            .foregroundColor(.white)
+                                            .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 2)
+                                        
+                                        Text(source.name)
+                                            .font(.headline)
+                                            .foregroundColor(.white)
+                                            .padding(.top, 8)
+                                        
+                                        Text(source.formattedTotalSpace)
+                                            .font(.subheadline)
+                                            .foregroundColor(.white.opacity(0.8))
+                                        
+                                        Button {
+                                            selectedSourceDisk = nil
+                                            viewModel.setDiskAsUnused(source)
+                                        } label: {
+                                            Text("Clear")
+                                                .font(.caption)
+                                                .padding(.horizontal, 16)
+                                                .padding(.vertical, 6)
+                                                .background(Color.white.opacity(0.2))
+                                                .cornerRadius(12)
+                                                .foregroundColor(.white)
+                                        }
+                                        .padding(.top, 8)
+                                    }
+                                }
+                            } else {
+                                // Show dropzone for source
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(style: StrokeStyle(lineWidth: 2, dash: [8]))
+                                        .foregroundColor(.white.opacity(0.7))
+                                        .frame(width: 220, height: 220)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 16)
+                                                .fill(Color.white.opacity(0.15))
+                                        )
+                                        .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
+                                    
+                                    Image(systemName: "plus.circle.fill")
+                                        .resizable()
+                                        .frame(width: 50, height: 50)
+                                        .foregroundColor(.white)
+                                        .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 2)
+                                }
+                            }
+                        }
+                        .frame(width: 250)
+                        
+                        // Disks panel (central)
+                        VStack {
+                            Text("Available Disks")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .padding(.bottom, 10)
+                            
+                            // Grid of disks, showing real disks
+                            ScrollView {
+                                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
+                                    ForEach(viewModel.availableDisks) { disk in
+                                        Button {
+                                            selectDisk(disk)
+                                        } label: {
+                                            VStack {
+                                                ZStack {
+                                                    Circle()
+                                                        .fill(diskColor(for: disk))
+                                                        .frame(width: 80, height: 80)
+                                                        .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 3)
+                                                    
+                                                    Image(systemName: disk.hasFullAccess ? "externaldrive.fill" : "externaldrive.badge.exclamationmark")
+                                                        .resizable()
+                                                        .scaledToFit()
+                                                        .frame(width: 35, height: 35)
+                                                        .foregroundColor(.white)
+                                                }
+                                                
+                                                Text(disk.name)
+                                                    .font(.system(size: 12, weight: .medium))
+                                                    .foregroundColor(.white)
+                                                
+                                                Text(disk.formattedTotalSpace)
+                                                    .font(.system(size: 11, weight: .regular))
+                                                    .foregroundColor(.white.opacity(0.7))
+                                            }
+                                            .padding(10)
+                                            .background(
+                                                RoundedRectangle(cornerRadius: 12)
+                                                    .fill(Color.white.opacity(0.1))
+                                            )
+                                        }
+                                        .buttonStyle(PlainButtonStyle())
+                                    }
+                                }
+                                .padding(10)
+                            }
+                            .frame(maxHeight: 300)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(Color.white.opacity(0.1))
+                            )
+                            .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
+                        }
+                        .frame(width: 300)
+                        
+                        // Destinations panel
+                        VStack {
+                            Text("Destinations")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .padding(.bottom, 10)
+                            
+                            if let destination = selectedDestinationDisk {
+                                // Show selected destination
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .fill(Color.green.opacity(0.3))
+                                        .frame(width: 220, height: 220)
+                                        .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 5)
+                                    
+                                    VStack {
+                                        Image(systemName: destination.hasFullAccess ? "externaldrive.fill" : "externaldrive.badge.exclamationmark")
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(width: 80, height: 80)
+                                            .foregroundColor(.white)
+                                            .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 2)
+                                        
+                                        Text(destination.name)
+                                            .font(.headline)
+                                            .foregroundColor(.white)
+                                            .padding(.top, 8)
+                                        
+                                        Text(destination.formattedFreeSpace)
+                                            .font(.subheadline)
+                                            .foregroundColor(.white.opacity(0.8))
+                                        
+                                        Button {
+                                            selectedDestinationDisk = nil
+                                            viewModel.setDiskAsUnused(destination)
+                                        } label: {
+                                            Text("Clear")
+                                                .font(.caption)
+                                                .padding(.horizontal, 16)
+                                                .padding(.vertical, 6)
+                                                .background(Color.white.opacity(0.2))
+                                                .cornerRadius(12)
+                                                .foregroundColor(.white)
+                                        }
+                                        .padding(.top, 8)
+                                    }
+                                }
+                            } else {
+                                // Show dropzone for destination
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(style: StrokeStyle(lineWidth: 2, dash: [8]))
+                                        .foregroundColor(.white.opacity(0.7))
+                                        .frame(width: 220, height: 220)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 16)
+                                                .fill(Color.white.opacity(0.15))
+                                        )
+                                        .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
+                                    
+                                    Image(systemName: "plus.circle.fill")
+                                        .resizable()
+                                        .frame(width: 50, height: 50)
+                                        .foregroundColor(.white)
+                                        .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 2)
+                                }
+                            }
+                        }
+                        .frame(width: 250)
+                    }
+                    .padding(.horizontal, 20)
+                    
+                    Spacer()
+                    
+                    // Action button
+                    Button(action: {
+                        // Create and start transfer
+                        if selectedSourceDisk != nil && selectedDestinationDisk != nil {
+                            viewModel.createTransfers()
+                            viewModel.startTransfers()
+                            
+                            // Auto-switch to transfer view
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                showingTransfers = true
+                            }
+                        }
+                    }) {
+                        Text("Start Transfer")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .padding()
+                            .frame(width: 200)
+                            .background(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [Color.purple, Color.blue]),
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .cornerRadius(10)
+                            .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 3)
+                    }
+                    .disabled(selectedSourceDisk == nil || selectedDestinationDisk == nil)
+                    .opacity((selectedSourceDisk == nil || selectedDestinationDisk == nil) ? 0.5 : 1.0)
+                    .padding(.bottom, 30)
+                }
+            }
+            .padding()
+        }
+        .alert(isPresented: $viewModel.showPermissionAlert) {
+            Alert(
+                title: Text("Permission Required"),
+                message: Text(viewModel.permissionErrorMessage),
+                primaryButton: .default(Text("Settings")) {
+                    viewModel.openSystemSettingsForPermissions()
+                },
+                secondaryButton: .cancel()
+            )
+        }
+        .onAppear {
+            // Auto-switch to transfers view if there are active transfers
+            if !viewModel.activeTransfers.isEmpty {
+                showingTransfers = true
+            }
+        }
+    }
+    
+    // Helper function to select a disk
+    private func selectDisk(_ disk: Disk) {
+        // First check permissions
+        if !disk.hasFullAccess {
+            viewModel.requestPermissionFor(disk) { success in
+                if success {
+                    processSelection(disk)
+                }
+            }
+        } else {
+            processSelection(disk)
+        }
+    }
+    
+    // Process the disk selection
+    private func processSelection(_ disk: Disk) {
+        if selectedSourceDisk == nil {
+            selectedSourceDisk = disk
+            viewModel.setDiskAsSource(disk)
+        } else if selectedDestinationDisk == nil {
+            // Don't select the same disk as both source and destination
+            if disk.id != selectedSourceDisk!.id {
+                selectedDestinationDisk = disk
+                viewModel.setDiskAsDestination(disk)
+            }
+        }
+    }
+    
+    // Helper function to get color for disk
+    private func diskColor(for disk: Disk) -> Color {
+        if disk.isSource {
+            return .blue
+        } else if disk.isDestination {
+            return .green
+        } else if !disk.hasFullAccess {
+            return .orange
+        } else {
+            // Return a random but consistent color based on disk name
+            let nameValue = disk.name.hashValue
+            
+            let colors: [Color] = [
+                .blue, .purple, .pink, .orange, 
+                Color(red: 0.2, green: 0.6, blue: 0.9),
+                Color(red: 0.8, green: 0.2, blue: 0.8),
+                Color(red: 0.9, green: 0.4, blue: 0.3),
+                Color(red: 0.3, green: 0.8, blue: 0.6)
+            ]
+            
+            return colors[abs(nameValue) % colors.count]
+        }
+    }
+}
+
+// A stylish transfer item for the gradient UI
+struct GradientTransferItem: View {
+    @ObservedObject var transfer: FileTransfer
+    
+    // Color for the progress bar based on transfer status
+    var progressBarColor: Color {
+        switch transfer.status {
+        case .preparing:
+            return Color.gray
+        case .copying:
+            return Color.blue
+        case .verifying:
+            return Color(red: 0.4, green: 0.7, blue: 1.0)
+        case .completed:
+            return Color.green
+        case .failed:
+            return Color.red
+        case .paused:
+            return Color.orange
+        default:
+            return Color.gray
+        }
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Header with source and destination
+            HStack {
+                Text("\(transfer.source.name) → \(transfer.destination.name)")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                
+                Spacer()
+                
+                // Status indicator
+                HStack {
+                    Circle()
+                        .fill(progressBarColor)
+                        .frame(width: 10, height: 10)
+                    
+                    if case .failed(let error) = transfer.status, let transferError = error as? FileTransferManager.TransferError {
+                        Text(transferError.errorDescription ?? "Error")
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    } else {
+                        Text(transfer.status.description)
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                }
+            }
+            
+            // Progress bar with glass effect
+            ZStack(alignment: .leading) {
+                // Background
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.white.opacity(0.1))
+                    .frame(height: 12)
+                
+                // Progress
+                GeometryReader { geometry in
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(
+                            LinearGradient(
+                                gradient: Gradient(colors: [progressBarColor, progressBarColor.opacity(0.7)]),
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: max(CGFloat(transfer.progress) * geometry.size.width, 0), height: 12)
+                }
+                .frame(height: 12)
+            }
+            
+            // Details
+            HStack {
+                if transfer.currentFile != nil {
+                    Text(transfer.currentFile!)
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.7))
+                        .lineLimit(1)
+                }
+                
+                Spacer()
+                
+                if transfer.status == .copying || transfer.status == .verifying {
+                    HStack(spacing: 10) {
+                        // Transfer rate
+                        Label(transfer.formattedTransferRate, systemImage: "speedometer")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.7))
+                        
+                        // Time remaining
+                        Label(transfer.formattedTimeRemaining, systemImage: "clock")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.7))
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.black.opacity(0.3))
+                .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 3)
+        )
+    }
+}
+
+#Preview {
+    GradientDiskSelectionView()
+        .environmentObject(MediaForgeViewModel())
+} 
