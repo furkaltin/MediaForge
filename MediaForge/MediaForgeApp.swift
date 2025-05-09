@@ -33,23 +33,6 @@ struct MediaForgeApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .commands {
-            // Add a debug menu for testing
-            #if DEBUG
-            CommandMenu("Debug") {
-                Button("Run Tests") {
-                    TestLauncher.runTests()
-                }
-                .keyboardShortcut("t", modifiers: [.command, .option])
-                
-                Divider()
-                
-                Button("Refresh Disks") {
-                    viewModel.refreshDisks()
-                }
-                .keyboardShortcut("r", modifiers: [.command, .shift])
-            }
-            #endif
-            
             // Add File menu
             CommandGroup(replacing: .newItem) {
                 Button("New Transfer") {
