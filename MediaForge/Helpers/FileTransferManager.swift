@@ -380,6 +380,30 @@ class FileTransferManager {
             }
             
             do {
+                // Büyük dosyalar için optimize edilmiş kopyalama yöntemi
+                if fileSize > 100_000_000 { // 100MB üzeri için
+                    // Direkt FileManager.copyItem kullan - daha optimize ve hızlı
+                    print("Using fast copy for large file (\(fileSize) bytes)")
+                    try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+                    
+                    // Dosya boyutunu doğrulayın
+                    let destSize = DiskManager.getSize(of: destinationPath)
+                    if destSize != fileSize {
+                        print("Size mismatch after copy: source=\(fileSize), dest=\(destSize)")
+                        try? FileManager.default.removeItem(at: destinationURL)
+                        throw TransferError.checksumMismatch
+                    }
+                    
+                    // İşlem tamamlandı, progress bildirimi
+                    DispatchQueue.main.async {
+                        progressHandler(fileSize, fileSize, sourceFileName)
+                    }
+                    completionHandler(.success("File copied successfully"))
+                    return
+                }
+                
+                // ---- Normal boyuttaki dosyalar için sonraki kopyalama metodları: ----
+                
                 // First, try using FileManager.copyItem which is the most reliable method
                 print("Attempting copy using FileManager.copyItem")
                 do {
@@ -396,7 +420,9 @@ class FileTransferManager {
                         }
                         
                         // Successful copy
-                        progressHandler(fileSize, fileSize, sourceFileName)
+                        DispatchQueue.main.async {
+                            progressHandler(fileSize, fileSize, sourceFileName)
+                        }
                         completionHandler(.success("File copied successfully"))
                         return
                     } else {
@@ -423,7 +449,9 @@ class FileTransferManager {
                         throw TransferError.checksumMismatch
                     }
                     
-                    progressHandler(fileSize, fileSize, sourceFileName)
+                    DispatchQueue.main.async {
+                        progressHandler(fileSize, fileSize, sourceFileName)
+                    }
                     completionHandler(.success("File copied successfully"))
                     return
                 } catch {
@@ -483,10 +511,14 @@ class FileTransferManager {
                         }
                         
                         totalBytesRead += Int64(bytesRead)
-                        progressHandler(totalBytesRead, fileSize, sourceFileName)
                         
-                        // Update progress
-                        progress.completedUnitCount = Int64(Double(totalBytesRead) / Double(fileSize) * 100)
+                        // UI güncellemelerini main thread'de yap
+                        DispatchQueue.main.async {
+                            progressHandler(totalBytesRead, fileSize, sourceFileName)
+                            
+                            // Update progress
+                            progress.completedUnitCount = Int64(Double(totalBytesRead) / Double(fileSize) * 100)
+                        }
                     } else if bytesRead < 0 {
                         // Error occurred
                         if let error = inputStream.streamError {
@@ -581,8 +613,9 @@ class FileTransferManager {
         var skippedItems: [String] = [] // Track skipped items
         var errorMessages: [String] = [] // Track all errors for better reporting
         
+        // Tarama işlemini background thread'de yapıyoruz
         DispatchQueue.global(qos: .userInitiated).async {
-            // Make sure we release security-scoped access when done
+            // Make sure we release security-scoped access when done with scanning
             defer {
                 if sourceAccessStarted {
                     stopAccessingPath(path: sourcePath)
@@ -601,11 +634,15 @@ class FileTransferManager {
                     }
                     
                     for item in contents {
-                        // Check for cancellation
-                        if progress.isCancelled {
-                            print("Directory scan cancelled by user")
-                            completionHandler(.failure(.cancelled))
-                            return false
+                        // Aralarda progress update için yield edelim ki UI donmasın
+                        if #available(macOS 10.15, *) {
+                            try Task.checkCancellation() // Modern yöntem
+                        } else {
+                            // İşlemin iptal edilip edilmediğini kontrol edelim
+                            if progress.isCancelled {
+                                print("Directory scan cancelled by user")
+                                return false
+                            }
                         }
                         
                         // Skip system directories and hidden files that cause permission issues
@@ -690,7 +727,9 @@ class FileTransferManager {
                         return false
                     } else {
                         // If the source directory itself can't be accessed, propagate the error
-                        completionHandler(.failure(.copyFailed(error)))
+                        DispatchQueue.main.async {
+                            completionHandler(.failure(.copyFailed(error)))
+                        }
                         return false
                     }
                 }
@@ -708,7 +747,9 @@ class FileTransferManager {
             if filesToCopy.isEmpty {
                 if skippedItems.isEmpty {
                     print("No image files found to copy in \(sourcePath)")
-                    completionHandler(.failure(.fileNotFound))
+                    DispatchQueue.main.async {
+                        completionHandler(.failure(.fileNotFound))
+                    }
                 } else {
                     print("No image files found to copy. \(skippedItems.count) items were skipped due to filtering or permissions.")
                     // Create a more detailed error with comprehensive information
@@ -721,7 +762,9 @@ class FileTransferManager {
                     let error = NSError(domain: "MediaForge.FileTransferManager", 
                                        code: 100, 
                                        userInfo: errorInfo)
-                    completionHandler(.failure(.copyFailed(error)))
+                    DispatchQueue.main.async {
+                        completionHandler(.failure(.copyFailed(error)))
+                    }
                 }
                 return
             }
@@ -732,7 +775,9 @@ class FileTransferManager {
             }
             
             // Report initial progress
-            progressHandler(0, totalSize, "Preparing to copy \(filesToCopy.count) image files")
+            DispatchQueue.main.async {
+                progressHandler(0, totalSize, "Preparing to copy \(filesToCopy.count) image files")
+            }
             
             // Check for existing files in destination to avoid overwriting without notification
             var existingFiles = 0
@@ -756,149 +801,204 @@ class FileTransferManager {
             
             // Copy each file
             var completedFiles = 0
-            let _ = 0 // activeTransfers değişkeni kullanılmıyor
-            let _ = 3 // maxConcurrentTransfers değişkeni kullanılmıyor
+            let operationQueue = OperationQueue()
+            operationQueue.maxConcurrentOperationCount = 3 // Aynı anda en fazla 3 dosya kopyalayalım
             
-            // Create a dispatch group to track when all files are done
-            let transferGroup = DispatchGroup()
-            let transferQueue = DispatchQueue(label: "com.mediaforge.transfers", attributes: .concurrent)
+            // Semafor kullanarak dosya kopyalama sayısını sınırlıyoruz ve takip ediyoruz
+            let transferCompletionGroup = DispatchGroup()
             
-            for filePath in filesToCopy {
-                // Check if operation was cancelled
-                if progress.isCancelled {
-                    print("Transfer cancelled by user")
-                    completionHandler(.failure(.cancelled))
+            // Tüm dosyaları eşzamanlı olarak kopyalamak yerine, batch olarak işleyelim
+            let batchSize = 10
+            var fileIndex = 0
+            
+            // Bu fonksiyon, kuyruktaki bir sonraki batch dosyayı işlemek için kullanılır
+            func processNextBatch() {
+                // Eğer tüm dosyalar kuyruğa eklendiyse, işlem bitti
+                if fileIndex >= filesToCopy.count {
                     return
                 }
                 
-                // Determine relative path
-                let relativePath = filePath.replacingOccurrences(of: sourcePath, with: "")
-                let destinationFilePath = destinationPath + relativePath
+                // Bu batch'deki maks dosya sayısını hesapla
+                let endIndex = min(fileIndex + batchSize, filesToCopy.count)
                 
-                // Create subdirectory if needed
-                let destinationFileDir = URL(fileURLWithPath: destinationFilePath).deletingLastPathComponent().path
-                
-                do {
-                    try FileManager.default.createDirectory(atPath: destinationFileDir, withIntermediateDirectories: true)
-                } catch {
-                    print("Failed to create subdirectory \(destinationFileDir): \(error.localizedDescription)")
-                    errorMessages.append("Failed to create directory: \(destinationFileDir)")
-                    failedFiles.append(filePath)
-                    continue // Skip this file but continue with others
-                }
-                
-                // Copy the file
-                let fileSize: Int64
-                do {
-                    let attributes = try FileManager.default.attributesOfItem(atPath: filePath)
-                    fileSize = attributes[.size] as? Int64 ?? DiskManager.getSize(of: filePath)
-                } catch {
-                    fileSize = DiskManager.getSize(of: filePath)
-                }
-                
-                let _ = URL(fileURLWithPath: filePath).lastPathComponent // currentFileName değişkeni kullanılmıyor
-                
-                // Create a file-level progress handler
-                let fileProgressHandler: (Int64, Int64, String) -> Void = { bytesTransferred, totalBytes, name in
-                    // Calculate the global progress
-                    let adjustedTransferred = copiedSize + bytesTransferred
+                // Bu batch'deki dosyaları kuyruğa ekle
+                for i in fileIndex..<endIndex {
+                    let filePath = filesToCopy[i]
                     
-                    // Create a status message showing progress with file counts
-                    let statusMessage = "Copying \(name) - \(completedFiles + 1)/\(filesToCopy.count) files"
-                    
-                    progressHandler(adjustedTransferred, totalSize, statusMessage)
-                    
-                    // Update the overall progress
-                    progress.completedUnitCount = Int64(Double(adjustedTransferred) / Double(totalSize) * 100)
-                }
-                
-                print("Copying file (\(completedFiles + 1)/\(filesToCopy.count)): \(filePath) -> \(destinationFilePath)")
-                
-                // Enter the dispatch group before starting the file transfer
-                transferGroup.enter()
-                
-                // Copy the file on a concurrent queue
-                transferQueue.async {
-                    _ = copyFile(
-                        from: filePath,
-                        to: destinationFilePath,
-                        progressHandler: fileProgressHandler,
-                        completionHandler: { result in
-                            // Update tracking variables atomically
-                            defer {
-                                // Leave the dispatch group when file is complete
-                                transferGroup.leave()
-                            }
-                            
-                            switch result {
-                            case .success:
-                                // File copied successfully
-                                copiedSize += fileSize
-                                anyFilesCopied = true
-                                completedFiles += 1
-                                
-                                // Update the status with new file count
-                                let statusMessage = "Completed \(completedFiles)/\(filesToCopy.count) files"
-                                progressHandler(copiedSize, totalSize, statusMessage)
-                                
-                                print("Successfully copied (\(completedFiles)/\(filesToCopy.count)): \(filePath)")
-                            case .failure(let error):
-                                // Handle file copy error
-                                print("Failed to copy \(filePath): \(error.localizedDescription)")
-                                failedFiles.append(filePath)
-                                errorMessages.append("Copy failed: \(filePath) - \(error.localizedDescription)")
-                            }
+                    // Check if operation was cancelled
+                    if progress.isCancelled {
+                        print("Transfer cancelled by user")
+                        DispatchQueue.main.async {
+                            completionHandler(.failure(.cancelled))
                         }
-                    )
-                }
-            }
-            
-            // Wait for all transfers to complete
-            transferGroup.wait()
-            
-            // Report success if any files were copied, even if some failed
-            if anyFilesCopied {
-                if failedFiles.isEmpty && skippedItems.isEmpty {
-                    print("All image files copied successfully")
-                    completionHandler(.success(true))
-                } else {
-                    // At least some files were copied, but some failed
-                    print("Transfer partially completed. \(failedFiles.count) files failed to copy. \(skippedItems.count) items were skipped.")
-                    
-                    // If we have a specific error message we can pass, do so
-                    if !errorMessages.isEmpty {
-                        let errorSummary = errorMessages.prefix(3).joined(separator: "; ")
-                        let _ = NSError(
-                            domain: "MediaForge.FileTransferManager",
-                            code: 101,
-                            userInfo: [
-                                NSLocalizedDescriptionKey: "Transfer partially completed",
-                                NSLocalizedFailureReasonErrorKey: "\(failedFiles.count) files failed to copy. \(errorSummary)",
-                                "failedCount": failedFiles.count,
-                                "skippedCount": skippedItems.count,
-                                "completedCount": completedFiles
-                            ]
-                        )
-                        // We still return success since some files were copied, but include error details
-                        print("Partial success with errors: \(errorSummary)")
+                        return
                     }
                     
-                    // Return success but with a note that it was partial
-                    completionHandler(.success(true))
+                    // Determine relative path
+                    let relativePath = filePath.replacingOccurrences(of: sourcePath, with: "")
+                    let destinationFilePath = destinationPath + relativePath
+                    
+                    // Create subdirectory if needed
+                    let destinationFileDir = URL(fileURLWithPath: destinationFilePath).deletingLastPathComponent().path
+                    
+                    do {
+                        try FileManager.default.createDirectory(atPath: destinationFileDir, withIntermediateDirectories: true)
+                    } catch {
+                        print("Failed to create subdirectory \(destinationFileDir): \(error.localizedDescription)")
+                        errorMessages.append("Failed to create directory: \(destinationFileDir)")
+                        failedFiles.append(filePath)
+                        continue // Skip this file but continue with others
+                    }
+                    
+                    // Copy the file
+                    let fileSize: Int64
+                    do {
+                        let attributes = try FileManager.default.attributesOfItem(atPath: filePath)
+                        fileSize = attributes[.size] as? Int64 ?? DiskManager.getSize(of: filePath)
+                    } catch {
+                        fileSize = DiskManager.getSize(of: filePath)
+                    }
+                    
+                    let fileName = URL(fileURLWithPath: filePath).lastPathComponent
+                    
+                    // Create a file-level progress handler
+                    let fileProgressHandler: (Int64, Int64, String) -> Void = { bytesTransferred, totalBytes, name in
+                        // Calculation of progress has to be thread-safe
+                        let adjustedTransferred = copiedSize + bytesTransferred
+                        
+                        // Create a status message showing progress with file counts
+                        let statusMessage = "Copying \(name) - \(completedFiles + 1)/\(filesToCopy.count) files"
+                        
+                        // UI updates must be on main thread
+                        DispatchQueue.main.async {
+                            progressHandler(adjustedTransferred, totalSize, statusMessage)
+                            
+                            // Update the overall progress
+                            progress.completedUnitCount = Int64(Double(adjustedTransferred) / Double(totalSize) * 100)
+                        }
+                    }
+                    
+                    print("Copying file (\(completedFiles + 1)/\(filesToCopy.count)): \(filePath) -> \(destinationFilePath)")
+                    
+                    // Enter the dispatch group before starting the file transfer
+                    transferCompletionGroup.enter()
+                    
+                    // Create an operation for this file copy
+                    let copyOperation = BlockOperation {
+                        _ = copyFile(
+                            from: filePath,
+                            to: destinationFilePath,
+                            progressHandler: fileProgressHandler,
+                            completionHandler: { result in
+                                defer {
+                                    // Leave the dispatch group when file is complete
+                                    transferCompletionGroup.leave()
+                                }
+                                
+                                switch result {
+                                case .success:
+                                    // Thread safety için senkronize edelim
+                                    objc_sync_enter(self)
+                                    copiedSize += fileSize
+                                    anyFilesCopied = true
+                                    completedFiles += 1
+                                    objc_sync_exit(self)
+                                    
+                                    // Update the status with new file count (on main thread)
+                                    DispatchQueue.main.async {
+                                        let statusMessage = "Completed \(completedFiles)/\(filesToCopy.count) files"
+                                        progressHandler(copiedSize, totalSize, statusMessage)
+                                    }
+                                    
+                                    print("Successfully copied (\(completedFiles)/\(filesToCopy.count)): \(filePath)")
+                                case .failure(let error):
+                                    // Handle file copy error
+                                    print("Failed to copy \(filePath): \(error.localizedDescription)")
+                                    
+                                    objc_sync_enter(self)
+                                    failedFiles.append(filePath)
+                                    errorMessages.append("Copy failed: \(filePath) - \(error.localizedDescription)")
+                                    objc_sync_exit(self)
+                                }
+                            }
+                        )
+                    }
+                    
+                    // Kopyalama işlemini kuyruğa ekle
+                    operationQueue.addOperation(copyOperation)
                 }
-            } else {
-                // No files were copied at all
-                print("Transfer failed: No image files could be copied.")
-                let errorDetail = errorMessages.prefix(5).joined(separator: "; ")
-                let error = NSError(domain: "MediaForge.FileTransferManager", 
-                                   code: 102, 
-                                   userInfo: [
-                                    NSLocalizedDescriptionKey: "No image files could be copied",
-                                    NSLocalizedFailureReasonErrorKey: "Check permissions and file access. \(errorDetail)",
-                                    "errorDetails": errorMessages
-                                   ])
-                completionHandler(.failure(.copyFailed(error)))
+                
+                // İndeksi güncelle
+                fileIndex = endIndex
+                
+                // İşlemlerin tamamlanmasını bekliyoruz, tamamlandığında bir sonraki batch'i işliyoruz
+                transferCompletionGroup.notify(queue: .global(qos: .userInitiated)) {
+                    // Bu batch bitti, bir sonrakini işle
+                    processNextBatch()
+                    
+                    // Eğer son batch işlendiyse ve tüm dosyalar tamamlandıysa, sonucu bildir
+                    if fileIndex >= filesToCopy.count && operationQueue.operationCount == 0 {
+                        // Tüm batch'ler tamamlandı, sonucu raporla
+                        finishTransfer()
+                    }
+                }
             }
+            
+            // Transfer sonuçlandığında çağrılacak fonksiyon
+            func finishTransfer() {
+                // Report success if any files were copied, even if some failed
+                if anyFilesCopied {
+                    if failedFiles.isEmpty && skippedItems.isEmpty {
+                        print("All image files copied successfully")
+                        DispatchQueue.main.async {
+                            completionHandler(.success(true))
+                        }
+                    } else {
+                        // At least some files were copied, but some failed
+                        print("Transfer partially completed. \(failedFiles.count) files failed to copy. \(skippedItems.count) items were skipped.")
+                        
+                        // If we have a specific error message we can pass, do so
+                        if !errorMessages.isEmpty {
+                            let errorSummary = errorMessages.prefix(3).joined(separator: "; ")
+                            let _ = NSError(
+                                domain: "MediaForge.FileTransferManager",
+                                code: 101,
+                                userInfo: [
+                                    NSLocalizedDescriptionKey: "Transfer partially completed",
+                                    NSLocalizedFailureReasonErrorKey: "\(failedFiles.count) files failed to copy. \(errorSummary)",
+                                    "failedCount": failedFiles.count,
+                                    "skippedCount": skippedItems.count,
+                                    "completedCount": completedFiles
+                                ]
+                            )
+                            // We still return success since some files were copied, but include error details
+                            print("Partial success with errors: \(errorSummary)")
+                        }
+                        
+                        // Return success but with a note that it was partial
+                        DispatchQueue.main.async {
+                            completionHandler(.success(true))
+                        }
+                    }
+                } else {
+                    // No files were copied at all
+                    print("Transfer failed: No image files could be copied.")
+                    let errorDetail = errorMessages.prefix(5).joined(separator: "; ")
+                    let error = NSError(domain: "MediaForge.FileTransferManager", 
+                                       code: 102, 
+                                       userInfo: [
+                                        NSLocalizedDescriptionKey: "No image files could be copied",
+                                        NSLocalizedFailureReasonErrorKey: "Check permissions and file access. \(errorDetail)",
+                                        "errorDetails": errorMessages
+                                       ])
+                    DispatchQueue.main.async {
+                        completionHandler(.failure(.copyFailed(error)))
+                    }
+                }
+            }
+            
+            // İlk batch'i işlemeye başla
+            processNextBatch()
         }
         
         return progress
