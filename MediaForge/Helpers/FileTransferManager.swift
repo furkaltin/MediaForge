@@ -62,6 +62,7 @@ class FileTransferManager {
     
     /// Dictionary to store security-scoped bookmarks for persistent access
     private static var securityScopedBookmarks: [String: Data] = [:]
+    private static let bookmarkQueue = DispatchQueue(label: "com.mediaforge.bookmarkQueue", attributes: .concurrent)
     
     /// Initialize important file access configurations
     static func initialize() {
@@ -80,8 +81,13 @@ class FileTransferManager {
         do {
             // Create bookmark with security scope
             let bookmarkData = try url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
-            securityScopedBookmarks[url.path] = bookmarkData
-            saveBookmarks()
+            
+            // Thread-safe dictionary update
+            bookmarkQueue.async(flags: .barrier) {
+                securityScopedBookmarks[url.path] = bookmarkData
+                saveBookmarks()
+            }
+            
             print("Successfully created bookmark for \(url.path)")
             return bookmarkData
         } catch {
@@ -92,8 +98,14 @@ class FileTransferManager {
     
     /// Access a path using security-scoped bookmark
     static func accessViaBookmark(path: String) -> Bool {
+        // Thread-safe dictionary read
+        var bookmarkData: Data?
+        bookmarkQueue.sync {
+            bookmarkData = securityScopedBookmarks[path]
+        }
+        
         // Check for existing bookmark
-        if let bookmarkData = securityScopedBookmarks[path] {
+        if let bookmarkData = bookmarkData {
             var isStale = false
             do {
                 let url = try URL(resolvingBookmarkData: bookmarkData, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &isStale)
@@ -101,8 +113,10 @@ class FileTransferManager {
                 if isStale {
                     // Update the bookmark if it's stale
                     if let newBookmark = createBookmarkFor(url: url) {
-                        securityScopedBookmarks[path] = newBookmark
-                        saveBookmarks()
+                        bookmarkQueue.async(flags: .barrier) {
+                            securityScopedBookmarks[path] = newBookmark
+                            saveBookmarks()
+                        }
                     }
                 }
                 
@@ -126,7 +140,12 @@ class FileTransferManager {
     
     /// Stop accessing a path using security-scoped bookmark
     static func stopAccessingPath(path: String) {
-        if let bookmarkData = securityScopedBookmarks[path] {
+        var bookmarkData: Data?
+        bookmarkQueue.sync {
+            bookmarkData = securityScopedBookmarks[path]
+        }
+        
+        if let bookmarkData = bookmarkData {
             do {
                 var isStale = false
                 let url = try URL(resolvingBookmarkData: bookmarkData, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &isStale)
@@ -139,8 +158,11 @@ class FileTransferManager {
     
     /// Save bookmarks to user defaults
     private static func saveBookmarks() {
-        let encodedBookmarks = securityScopedBookmarks.mapValues { data in
-            return data.base64EncodedString()
+        var encodedBookmarks: [String: String] = [:]
+        bookmarkQueue.sync {
+            encodedBookmarks = securityScopedBookmarks.mapValues { data in
+                return data.base64EncodedString()
+            }
         }
         UserDefaults.standard.set(encodedBookmarks, forKey: "MediaForgeBookmarks")
     }
@@ -148,11 +170,15 @@ class FileTransferManager {
     /// Load bookmarks from user defaults
     private static func loadBookmarks() {
         if let encoded = UserDefaults.standard.dictionary(forKey: "MediaForgeBookmarks") as? [String: String] {
-            securityScopedBookmarks = encoded.compactMapValues { base64String in
+            let loadedBookmarks = encoded.compactMapValues { base64String in
                 if let data = Data(base64Encoded: base64String) {
                     return data
                 }
                 return nil
+            }
+            
+            bookmarkQueue.async(flags: .barrier) {
+                securityScopedBookmarks = loadedBookmarks
             }
         }
     }
