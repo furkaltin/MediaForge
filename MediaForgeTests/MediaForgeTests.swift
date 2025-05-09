@@ -8,7 +8,15 @@
 import XCTest
 @testable import MediaForge
 
-class MediaForgeTests: XCTestCase {
+final class MediaForgeTests: XCTestCase {
+
+    override func setUpWithError() throws {
+        // Testler öncesi hazırlık
+    }
+
+    override func tearDownWithError() throws {
+        // Testler sonrası temizlik
+    }
 
     func testExample() throws {
         // This is an example of a functional test case.
@@ -16,4 +24,10 @@ class MediaForgeTests: XCTestCase {
         XCTAssertTrue(true)
     }
 
+    func testPerformanceExample() throws {
+        // This is an example of a performance test case.
+        measure {
+            // Performans ölçmek istediğiniz kodu buraya yazın
+        }
+    }
 }

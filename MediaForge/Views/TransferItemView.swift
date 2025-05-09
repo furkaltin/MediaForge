@@ -191,13 +191,84 @@ struct TransferItemView: View {
             
             // Show error message for failed transfers
             if case let .failed(error) = transfer.status {
-                Text(error.localizedDescription)
-                    .font(.system(size: 11))
+                errorMessageView(for: error)
+            }
+        }
+    }
+    
+    // Error message view component
+    @ViewBuilder
+    func errorMessageView(for error: Error) -> some View {
+        if let transferError = error as? FileTransferManager.TransferError {
+            // Custom error types from our app
+            HStack(spacing: 4) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 10))
+                    .foregroundColor(.red.opacity(0.8))
+                
+                Text(transferError.errorDescription ?? "Unknown error")
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.red.opacity(0.8))
                     .frame(maxWidth: 200, alignment: .trailing)
                     .lineLimit(1)
+                    .help(transferError.failureReason ?? transferError.errorDescription ?? "Unknown error")
             }
+        } else {
+            // Handle NSError with more detail
+            let nsError = error as NSError
+            VStack(alignment: .trailing, spacing: 2) {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 10))
+                        .foregroundColor(.red.opacity(0.8))
+                    
+                    Text(nsError.localizedDescription)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.red.opacity(0.8))
+                        .frame(maxWidth: 200, alignment: .trailing)
+                        .lineLimit(1)
+                }
+                
+                // Add detailed reason if available
+                if let reason = nsError.localizedFailureReason {
+                    Text(reason)
+                        .font(.system(size: 9))
+                        .foregroundColor(.red.opacity(0.6))
+                        .frame(maxWidth: 200, alignment: .trailing)
+                        .lineLimit(1)
+                }
+            }
+            .help(getFullErrorDetails(for: nsError))
         }
+    }
+    
+    // Get full error details for tooltip
+    func getFullErrorDetails(for error: NSError) -> String {
+        var details = [String]()
+        
+        details.append("Error: \(error.localizedDescription)")
+        
+        if let reason = error.localizedFailureReason {
+            details.append("Reason: \(reason)")
+        }
+        
+        if let suggestion = error.localizedRecoverySuggestion {
+            details.append("Suggestion: \(suggestion)")
+        }
+        
+        details.append("Code: \(error.code)")
+        details.append("Domain: \(error.domain)")
+        
+        // Check for additional details in user info
+        if let skipItems = error.userInfo["skippedItems"] as? String {
+            details.append("Skipped: \(skipItems)")
+        }
+        
+        if let errorDetails = error.userInfo["errorMessages"] as? [String], !errorDetails.isEmpty {
+            details.append("Details: \(errorDetails.joined(separator: "; "))")
+        }
+        
+        return details.joined(separator: "\n")
     }
     
     // Progress view for active transfers

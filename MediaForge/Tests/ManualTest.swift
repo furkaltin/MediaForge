@@ -77,4 +77,9 @@ class ManualTest {
             }
         }
     }
+}
+
+// Top-level expressions hatası için manual entry point tanımlayalım
+func main() {
+    ManualTest.main()
 } 
