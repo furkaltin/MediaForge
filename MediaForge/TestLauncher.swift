@@ -29,7 +29,6 @@ struct TestLauncher {
     
     /// Run the manual tests
     private static func runManualTests() {
-        print("\nRunning manual tests...")
-        ManualTest.main()
+        print("Manual tests are not available.")
     }
 } 
