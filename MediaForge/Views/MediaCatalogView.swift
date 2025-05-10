@@ -9,6 +9,9 @@ struct MediaCatalogView: View {
     @State private var selectedSortOption = SortOption.dateDesc
     @State private var showingAddCollection = false
     @State private var selectedItems: Set<UUID> = []
+    @State private var showingComparisonView = false
+    @State private var comparisonSelectedItem: CatalogItem?
+    @State private var comparisonSecondaryItem: CatalogItem?
     
     enum SortOption: String, CaseIterable {
         case nameAsc = "Name (A-Z)"
@@ -202,6 +205,7 @@ struct MediaCatalogView: View {
                         Text("Grid").tag(0)
                         Text("List").tag(1)
                         Text("Details").tag(2)
+                        Text("Timeline").tag(3)
                     }
                     .pickerStyle(SegmentedPickerStyle())
                     .padding()
@@ -218,6 +222,10 @@ struct MediaCatalogView: View {
                         // Details view
                         mediaDetailsView
                             .tag(2)
+                        
+                        // Timeline view
+                        timelineView
+                            .tag(3)
                     }
                     .tabViewStyle(DefaultTabViewStyle())
                 }
@@ -225,6 +233,11 @@ struct MediaCatalogView: View {
         }
         .sheet(isPresented: $showingAddCollection) {
             addCollectionView
+        }
+        .sheet(isPresented: $showingComparisonView) {
+            if let item = comparisonSelectedItem {
+                MediaComparisonView(viewModel: viewModel, primaryItem: item, secondaryItem: comparisonSecondaryItem)
+            }
         }
     }
     
@@ -319,6 +332,10 @@ struct MediaCatalogView: View {
                 // Open metadata editor
             }
             
+            Button("Compare Media") {
+                showComparisonTool(for: item)
+            }
+            
             Menu("Add to Collection") {
                 ForEach(viewModel.mediaCollections) { collection in
                     Button(collection.name) {
@@ -361,7 +378,7 @@ struct MediaCatalogView: View {
                                 .foregroundColor(.secondary)
                             
                             if let duration = item.duration {
-                                Text(formatDuration(duration))
+                                Text(MediaCatalogView.formatDuration(duration))
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
@@ -455,7 +472,7 @@ struct MediaCatalogView: View {
                             .frame(width: 120, alignment: .leading)
                         
                         // Duration
-                        Text(item.duration != nil ? formatDuration(item.duration!) : "—")
+                        Text(item.duration != nil ? MediaCatalogView.formatDuration(item.duration!) : "—")
                             .frame(width: 100, alignment: .leading)
                         
                         // Date added
@@ -483,6 +500,259 @@ struct MediaCatalogView: View {
                 }
             }
         }
+    }
+    
+    // Timeline view with chronological display
+    var timelineView: some View {
+        VStack(spacing: 0) {
+            // Timeline controls
+            HStack {
+                Text("Timeline")
+                    .font(.headline)
+                
+                Spacer()
+                
+                // Scale control
+                HStack {
+                    Text("Scale:")
+                        .font(.caption)
+                    
+                    Slider(value: .constant(1.0), in: 0.1...10)
+                        .frame(width: 100)
+                }
+                
+                // Sort and filter options
+                Picker("Sort by:", selection: .constant("Creation Time")) {
+                    Text("Creation Time").tag("Creation Time")
+                    Text("Timecode").tag("Timecode")
+                }
+                .pickerStyle(MenuPickerStyle())
+                .frame(width: 150)
+                
+                // Group by picker
+                Picker("Group by:", selection: .constant("None")) {
+                    Text("None").tag("None")
+                    Text("Camera").tag("Camera")
+                    Text("Scene").tag("Scene")
+                    Text("Take").tag("Take")
+                }
+                .pickerStyle(MenuPickerStyle())
+                .frame(width: 150)
+            }
+            .padding()
+            .background(Color.gray.opacity(0.1))
+            
+            // Main timeline scroll view
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(alignment: .leading, spacing: 20) {
+                    // Time ruler
+                    TimelineRulerView()
+                        .frame(height: 30)
+                        .padding(.leading, 120) // Align with clip starts
+                    
+                    // Timeline tracks
+                    ForEach(groupedTimelineItems.keys.sorted(), id: \.self) { group in
+                        VStack(alignment: .leading, spacing: 2) {
+                            // Group header
+                            HStack {
+                                Text(group)
+                                    .font(.headline)
+                                    .padding(.vertical, 4)
+                                
+                                Spacer()
+                            }
+                            .padding(.horizontal)
+                            .background(Color.blue.opacity(0.1))
+                            
+                            // Clips in this group
+                            ForEach(groupedTimelineItems[group] ?? [], id: \.id) { item in
+                                TimelineClipView(item: item)
+                            }
+                        }
+                        .padding(.bottom, 10)
+                    }
+                }
+                .padding()
+            }
+        }
+    }
+    
+    // Timeline ruler showing time markers
+    struct TimelineRulerView: View {
+        var body: some View {
+            GeometryReader { geometry in
+                ZStack(alignment: .top) {
+                    // Ruler line
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.5))
+                        .frame(height: 1)
+                        .offset(y: 15)
+                    
+                    // Time markers
+                    ForEach(0..<Int(geometry.size.width / 100) + 1, id: \.self) { index in
+                        VStack(spacing: 2) {
+                            // Hour tick
+                            Rectangle()
+                                .fill(Color.gray)
+                                .frame(width: 1, height: 10)
+                            
+                            // Hour label
+                            Text(formatTimeForRuler(hours: index))
+                                .font(.system(size: 10))
+                                .foregroundColor(.gray)
+                        }
+                        .position(x: CGFloat(index * 100), y: 8)
+                    }
+                    
+                    // Minute markers (every 10 min)
+                    ForEach(0..<Int(geometry.size.width / 10) + 1, id: \.self) { index in
+                        if index % 10 != 0 {
+                            Rectangle()
+                                .fill(Color.gray.opacity(0.7))
+                                .frame(width: 1, height: 5)
+                                .position(x: CGFloat(index * 10), y: 8)
+                        }
+                    }
+                }
+            }
+        }
+        
+        private func formatTimeForRuler(hours: Int) -> String {
+            return "\(hours):00"
+        }
+    }
+    
+    // A single clip in the timeline
+    struct TimelineClipView: View {
+        let item: CatalogItem
+        
+        // Computed properties for visual display
+        private var clipColor: Color {
+            if item.type.contains("video") {
+                return .blue
+            } else if item.type.contains("audio") {
+                return .purple
+            } else if item.type.contains("image") {
+                return .green
+            } else {
+                return .gray
+            }
+        }
+        
+        private var clipWidth: CGFloat {
+            // Base width on duration, with a minimum size
+            let baseDuration: TimeInterval = item.duration ?? 30
+            return max(100, CGFloat(baseDuration) * 2) // 2 pixels per second
+        }
+        
+        var body: some View {
+            HStack(spacing: 0) {
+                // Metadata sidebar
+                VStack(alignment: .trailing) {
+                    Text(item.name)
+                        .font(.caption)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    
+                    if let resolution = item.resolution {
+                        Text(resolution)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .frame(width: 100, alignment: .trailing)
+                .padding(.trailing, 8)
+                
+                // Clip visualization
+                ZStack(alignment: .leading) {
+                    // Clip background
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(clipColor.opacity(0.2))
+                        .frame(width: clipWidth, height: 40)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .stroke(clipColor, lineWidth: 1)
+                        )
+                    
+                    // Clip label
+                    HStack {
+                        // Type icon
+                        Group {
+                            if item.type.contains("video") {
+                                Image(systemName: "film")
+                            } else if item.type.contains("audio") {
+                                Image(systemName: "waveform")
+                            } else if item.type.contains("image") {
+                                Image(systemName: "photo")
+                            } else {
+                                Image(systemName: "doc")
+                            }
+                        }
+                        .foregroundColor(clipColor)
+                        
+                        // Name and duration
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.name)
+                                .font(.caption)
+                                .lineLimit(1)
+                            
+                            if let duration = item.duration {
+                                Text(MediaCatalogView.formatDuration(duration))
+                                    .font(.system(size: 9))
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    .padding(.leading, 4)
+                }
+                .padding(.vertical, 2)
+            }
+            .contentShape(Rectangle())
+            .contextMenu {
+                Button("View Media") {
+                    // Open media viewer
+                }
+                
+                Button("Edit Metadata") {
+                    // Open metadata editor
+                }
+                
+                Divider()
+                
+                Button("Select Media") {
+                    // Add to selection
+                }
+            }
+        }
+    }
+    
+    // Format duration as a string
+    static func formatDuration(_ duration: TimeInterval) -> String {
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.hour, .minute, .second]
+        formatter.unitsStyle = .positional
+        formatter.zeroFormattingBehavior = .pad
+        return formatter.string(from: duration) ?? "—"
+    }
+    
+    // Format date as a string
+    func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        return formatter.string(from: date)
+    }
+    
+    // Computed property for grouped timeline items
+    var groupedTimelineItems: [String: [CatalogItem]] {
+        let items = filteredItems
+        
+        // Default grouping - all in one group
+        var groupedItems: [String: [CatalogItem]] = ["All Media": items]
+        
+        // Group by specific metadata field if selected
+        // This would be expanded based on the grouping selection
+        
+        return groupedItems
     }
     
     // Add collection sheet
@@ -554,20 +824,6 @@ struct MediaCatalogView: View {
         }
     }
     
-    func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        return formatter.string(from: date)
-    }
-    
-    func formatDuration(_ duration: TimeInterval) -> String {
-        let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = [.hour, .minute, .second]
-        formatter.unitsStyle = .positional
-        formatter.zeroFormattingBehavior = .pad
-        return formatter.string(from: duration) ?? "—"
-    }
-    
     func statusColor(for item: CatalogItem) -> Color {
         switch item.verificationState {
         case .verified:
@@ -593,6 +849,23 @@ struct MediaCatalogView: View {
     func exportSelectedItems() {
         // Would prompt export dialog
         // Not implemented here since we can't show system dialogs in SwiftUI preview
+    }
+    
+    func showComparisonTool(for item: CatalogItem) {
+        comparisonSelectedItem = item
+        
+        // If there are already items selected in the catalog view, use the first one as the comparison item
+        if selectedItems.count > 0 {
+            // Find a different item for comparison
+            let potentialComparisonItem = filteredItems.first { 
+                $0.id != item.id && selectedItems.contains($0.id)
+            }
+            comparisonSecondaryItem = potentialComparisonItem
+        } else {
+            comparisonSecondaryItem = nil
+        }
+        
+        showingComparisonView = true
     }
 }
 
