@@ -15,6 +15,9 @@ class MediaForgeViewModel: ObservableObject {
     /// All transfers (active, completed, and queued)
     @Published var transfers: [FileTransfer] = []
     
+    /// Status message to show notifications to the user
+    @Published var statusMessage: String = ""
+    
     /// Show permission error alert
     @Published var showPermissionAlert = false
     
@@ -55,6 +58,55 @@ class MediaForgeViewModel: ObservableObject {
         }
     }
     
+    // MARK: - Transfer Presets
+    
+    /// Available transfer presets
+    @Published var transferPresets: [TransferPreset] = []
+    
+    /// Currently active preset
+    @Published var activePreset: TransferPreset?
+    
+    // MARK: - Settings Properties
+    
+    // General settings
+    @Published var showConfirmationDialogs: Bool = true
+    @Published var autoStartTransfer: Bool = false
+    @Published var playSoundOnComplete: Bool = true
+    @Published var createSubfolder: Bool = true
+    @Published var generateChecksums: Bool = true
+    @Published var createMHL: Bool = false
+    
+    // Advanced settings
+    @Published var maxConcurrentTransfers: Double = 3
+    @Published var useNativeCopy: Bool = true
+    @Published var skipSystemFiles: Bool = true
+    @Published var showDebugInfo: Bool = false
+    
+    // Verification settings
+    @Published var defaultChecksumMethod: String = "xxHash64"
+    @Published var defaultVerificationMode: String = "Standard"
+    @Published var alwaysVerify: Bool = true
+    @Published var stopOnVerificationFailure: Bool = true
+    @Published var autoRetryFailedTransfers: Bool = false
+    @Published var maxRetryAttempts: Int = 3
+    
+    // Appearance settings
+    @Published var useDarkMode: Bool = true
+    @Published var accentColor: Color = .blue
+    @Published var animateTransitions: Bool = true
+    @Published var useCompactView: Bool = false
+    @Published var defaultSortOrder: String = "name"
+    @Published var diskViewLayout: String = "grid"
+    
+    // Selected methods for current transfer
+    @Published var selectedChecksumMethod: String = "xxHash64"
+    @Published var selectedVerificationMethod: String = "Standard"
+    @Published var subfolderPath: String = ""
+    
+    // Selection states
+    @Published var selectedSourceDisk: Disk?
+    @Published var selectedDestinationDisk: Disk?
+    
     /// Initialize the view model and load initial disk data
     init() {
         // Initialize Disk Arbitration framework
@@ -83,6 +135,9 @@ class MediaForgeViewModel: ObservableObject {
             name: NSNotification.Name("RefreshDisks"),
             object: nil
         )
+        
+        // Load saved presets
+        loadPresets()
     }
     
     deinit {
@@ -528,5 +583,317 @@ class MediaForgeViewModel: ObservableObject {
             return
         }
         NSWorkspace.shared.open(url)
+    }
+    
+    /// Load saved transfer presets
+    private func loadPresets() {
+        transferPresets = TransferPresetManager.loadPresets()
+        
+        // Set first preset as active if available
+        if let firstPreset = transferPresets.first {
+            activePreset = firstPreset
+        }
+    }
+    
+    /// Save presets to storage
+    private func savePresets() {
+        TransferPresetManager.savePresets(transferPresets)
+    }
+    
+    /// Add a new preset
+    func addPreset(_ preset: TransferPreset) {
+        transferPresets.append(preset)
+        savePresets()
+    }
+    
+    /// Update an existing preset
+    func updatePreset(_ preset: TransferPreset) {
+        if let index = transferPresets.firstIndex(where: { $0.id == preset.id }) {
+            transferPresets[index] = preset
+            
+            // Update active preset if we're editing it
+            if activePreset?.id == preset.id {
+                activePreset = preset
+            }
+            
+            savePresets()
+        }
+    }
+    
+    /// Delete a preset
+    func deletePreset(_ preset: TransferPreset) {
+        transferPresets.removeAll { $0.id == preset.id }
+        
+        // Update active preset if needed
+        if activePreset?.id == preset.id {
+            activePreset = transferPresets.first
+        }
+        
+        savePresets()
+    }
+    
+    /// Apply a preset to the current configuration
+    func applyPreset(_ preset: TransferPreset) {
+        activePreset = preset
+        
+        // Apply preset settings to transfer configuration
+        if let sourceDisk = selectedSourceDisk, let destinationDisk = selectedDestinationDisk {
+            // Create destination subfolder based on preset pattern
+            let subfolderPath = preset.createDestinationPath()
+            
+            // Set up transfer with preset settings
+            prepareTransfer(
+                source: sourceDisk,
+                destination: destinationDisk,
+                createSubfolder: true,
+                subfolder: subfolderPath,
+                checksumMethod: preset.checksumAlgorithm.rawValue,
+                verificationMethod: preset.verificationBehavior.rawValue,
+                createMHL: preset.createMHL
+            )
+        }
+    }
+    
+    /// Prepare a transfer with advanced options
+    func prepareTransfer(
+        source: Disk,
+        destination: Disk,
+        createSubfolder: Bool = false,
+        subfolder: String = "",
+        checksumMethod: String = "xxHash64",
+        verificationMethod: String = "Standard",
+        createMHL: Bool = false
+    ) {
+        // Mark disks as source and destination
+        markSourceDisk(source)
+        markDestinationDisk(destination)
+        
+        // Set transfer options
+        self.createSubfolder = createSubfolder
+        self.subfolderPath = subfolder
+        self.selectedChecksumMethod = checksumMethod
+        self.selectedVerificationMethod = verificationMethod
+        self.createMHL = createMHL
+        
+        // Set up the transfer UI to show these options
+        setupTransferUI()
+    }
+    
+    /// Set up the transfer UI after configuring options
+    private func setupTransferUI() {
+        // Update UI to reflect transfer settings
+        // This would typically navigate to the transfers view
+        NotificationCenter.default.post(name: Notification.Name("ShowTransfersView"), object: nil)
+        
+        // Update status message
+        if let source = selectedSourceDisk, let destination = selectedDestinationDisk {
+            statusMessage = "Ready to transfer from \(source.name) to \(destination.name)"
+            
+            // Show folder path if creating subfolder
+            if createSubfolder && !subfolderPath.isEmpty {
+                statusMessage += " in subfolder '\(subfolderPath)'"
+            }
+        }
+    }
+    
+    /// Mark a disk as a source for easy reference
+    private func markSourceDisk(_ disk: Disk) {
+        selectedSourceDisk = disk
+        setDiskAsSource(disk)
+    }
+    
+    /// Mark a disk as a destination for easy reference
+    private func markDestinationDisk(_ disk: Disk) {
+        selectedDestinationDisk = disk
+        setDiskAsDestination(disk)
+    }
+    
+    /// Generate a report for completed transfers
+    func generateTransferReport(format: FileTransferManager.ReportFormat = .html) {
+        guard !completedTransfers.isEmpty else {
+            print("No completed transfers to include in report")
+            return
+        }
+        
+        // Create report directory if it doesn't exist
+        let reportsDirectory = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Documents")
+            .appendingPathComponent("MediaForge Reports")
+        
+        do {
+            try FileManager.default.createDirectory(at: reportsDirectory, withIntermediateDirectories: true)
+        } catch {
+            print("Error creating reports directory: \(error)")
+            return
+        }
+        
+        // Generate report filename
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+        let timestamp = dateFormatter.string(from: Date())
+        
+        let reportPath = reportsDirectory
+            .appendingPathComponent("Transfer_Report_\(timestamp).\(format.fileExtension)")
+            .path
+        
+        // Generate the report
+        FileTransferManager.generateReport(
+            transfers: completedTransfers,
+            format: format, 
+            outputPath: reportPath
+        ) { result in
+            switch result {
+            case .success(let path):
+                DispatchQueue.main.async {
+                    self.statusMessage = "Report saved to: \(path)"
+                    
+                    // Open the report with the default app
+                    NSWorkspace.shared.open(URL(fileURLWithPath: path))
+                }
+            case .failure(let error):
+                DispatchQueue.main.async {
+                    self.statusMessage = "Failed to generate report: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+    
+    /// Generate MHL file for a transfer
+    func generateMHL(for transfer: FileTransfer, algorithm: MediaHashList.HashAlgorithm = .md5) {
+        // Create MHL directory if it doesn't exist
+        let mhlDirectory = URL(fileURLWithPath: transfer.destination.path)
+            .appendingPathComponent("MHL")
+        
+        do {
+            try FileManager.default.createDirectory(at: mhlDirectory, withIntermediateDirectories: true)
+        } catch {
+            print("Error creating MHL directory: \(error)")
+            return
+        }
+        
+        // Generate filename with timestamp
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+        let timestamp = dateFormatter.string(from: Date())
+        
+        let sourceName = URL(fileURLWithPath: transfer.source.path).lastPathComponent
+        let mhlPath = mhlDirectory
+            .appendingPathComponent("\(sourceName)_\(timestamp).mhl")
+            .path
+        
+        // Get list of files in transfer
+        let transferDirectory = URL(fileURLWithPath: transfer.destination.path)
+            .appendingPathComponent(URL(fileURLWithPath: transfer.source.path).lastPathComponent)
+        
+        guard let enumerator = FileManager.default.enumerator(
+            at: transferDirectory,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles],
+            errorHandler: nil
+        ) else {
+            print("Failed to enumerate files for MHL generation")
+            return
+        }
+        
+        // Collect all file paths
+        var filePaths: [String] = []
+        for case let fileURL as URL in enumerator {
+            if !fileURL.hasDirectoryPath {
+                filePaths.append(fileURL.path)
+            }
+        }
+        
+        // Generate MHL file
+        let comment = "Transfer from \(transfer.source.name) to \(transfer.destination.name)"
+        let success = MediaHashList.generateMHL(for: filePaths, mhlPath: mhlPath, algorithm: algorithm, comment: comment)
+        
+        if success {
+            DispatchQueue.main.async {
+                self.statusMessage = "MHL file created at: \(mhlPath)"
+            }
+        } else {
+            DispatchQueue.main.async {
+                self.statusMessage = "Failed to create MHL file"
+            }
+        }
+    }
+    
+    /// Show a permission error for a specific disk
+    func showPermissionErrorFor(disk: Disk) {
+        permissionErrorMessage = "MediaForge needs full disk access to '\(disk.name)'"
+        permissionErrorDisk = disk.name
+        showPermissionAlert = true
+    }
+    
+    /// Select a custom folder to use as a source
+    func selectCustomSourceFolder() {
+        let openPanel = NSOpenPanel()
+        openPanel.title = "Select Source Folder"
+        openPanel.message = "Choose a folder to use as source"
+        openPanel.canChooseDirectories = true
+        openPanel.canChooseFiles = false
+        openPanel.allowsMultipleSelection = false
+        
+        if openPanel.runModal() == .OK, let url = openPanel.url {
+            let path = url.path
+            let name = url.lastPathComponent
+            
+            // Create a custom disk object with default values
+            let disk = Disk(
+                name: name, 
+                path: path, 
+                devicePath: path,
+                icon: "folder",
+                totalSpace: 1000000000, // 1 GB default
+                freeSpace: 500000000,   // 500 MB default
+                isRemovable: false
+            )
+            disk.isSource = true
+            
+            // Add to disks if not already present
+            if !availableDisks.contains(where: { $0.path == path }) {
+                availableDisks.append(disk)
+                sources.append(disk)
+                
+                // Show a notification
+                statusMessage = "Added '\(name)' as source folder"
+            }
+        }
+    }
+    
+    /// Select a custom folder to use as a destination
+    func selectCustomDestinationFolder() {
+        let openPanel = NSOpenPanel()
+        openPanel.title = "Select Destination Folder"
+        openPanel.message = "Choose a folder to use as destination"
+        openPanel.canChooseDirectories = true
+        openPanel.canChooseFiles = false
+        openPanel.allowsMultipleSelection = false
+        
+        if openPanel.runModal() == .OK, let url = openPanel.url {
+            let path = url.path
+            let name = url.lastPathComponent
+            
+            // Create a custom disk object with default values
+            let disk = Disk(
+                name: name, 
+                path: path, 
+                devicePath: path,
+                icon: "folder",
+                totalSpace: 1000000000, // 1 GB default
+                freeSpace: 500000000,   // 500 MB default
+                isRemovable: false
+            )
+            disk.isDestination = true
+            
+            // Add to disks if not already present
+            if !availableDisks.contains(where: { $0.path == path }) {
+                availableDisks.append(disk)
+                destinations.append(disk)
+                
+                // Show a notification
+                statusMessage = "Added '\(name)' as destination folder"
+            }
+        }
     }
 } 

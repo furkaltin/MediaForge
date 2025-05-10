@@ -538,6 +538,90 @@ struct TransfersView: View {
                         .background(Color(red: 0.12, green: 0.12, blue: 0.14))
                         .cornerRadius(12)
                     }
+                    
+                    // Actions section - only for completed transfers
+                    if transfer.status == .completed {
+                        Group {
+                            sectionTitle("Actions")
+                            
+                            VStack(spacing: 15) {
+                                // MHL generation
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Generate MHL")
+                                            .font(.system(size: 15, weight: .medium))
+                                            .foregroundColor(.white)
+                                        
+                                        Text("Create Media Hash List for verification")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(.gray)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    Button {
+                                        // Generate MHL file
+                                        let success = transfer.generateMHL()
+                                        if success {
+                                            viewModel.statusMessage = "MHL file generated successfully"
+                                        } else {
+                                            viewModel.statusMessage = "Failed to generate MHL file"
+                                        }
+                                    } label: {
+                                        Text("Generate MHL")
+                                            .font(.system(size: 14, weight: .medium))
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 8)
+                                            .background(Color.blue.opacity(0.2))
+                                            .cornerRadius(8)
+                                            .foregroundColor(.white)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                
+                                // Report generation
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Generate Report")
+                                            .font(.system(size: 15, weight: .medium))
+                                            .foregroundColor(.white)
+                                        
+                                        Text("Create detailed transfer report")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(.gray)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    Menu {
+                                        Button("HTML Report") {
+                                            viewModel.generateTransferReport(format: .html)
+                                        }
+                                        Button("PDF Report") {
+                                            viewModel.generateTransferReport(format: .pdf)
+                                        }
+                                        Button("CSV Report") {
+                                            viewModel.generateTransferReport(format: .csv)
+                                        }
+                                        Button("JSON Report") {
+                                            viewModel.generateTransferReport(format: .json)
+                                        }
+                                    } label: {
+                                        Text("Generate Report")
+                                            .font(.system(size: 14, weight: .medium))
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 8)
+                                            .background(Color.purple.opacity(0.2))
+                                            .cornerRadius(8)
+                                            .foregroundColor(.white)
+                                    }
+                                }
+                            }
+                            .padding(15)
+                            .background(Color(red: 0.12, green: 0.12, blue: 0.14))
+                            .cornerRadius(12)
+                        }
+                    }
                 }
                 .padding()
             }

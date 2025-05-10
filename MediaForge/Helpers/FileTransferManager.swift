@@ -63,7 +63,7 @@ class FileTransferManager {
     
     /// Dictionary to store security-scoped bookmarks for persistent access
     private static var securityScopedBookmarks: [String: Data] = [:]
-    private static let bookmarkLock = OSAllocatedUnfairLock() // Use modern lock instead of dispatch queue
+    private static let bookmarkQueue = DispatchQueue(label: "com.mediaforge.bookmarkQueue") // Serial queue for thread safety
     
     /// Initialize important file access configurations
     static func initialize() {
@@ -83,8 +83,8 @@ class FileTransferManager {
             // Create bookmark with security scope
             let bookmarkData = try url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
             
-            // Thread-safe dictionary update with unfair lock
-            bookmarkLock.withLock {
+            // Thread-safe dictionary update with serial queue
+            bookmarkQueue.async {
                 securityScopedBookmarks[url.path] = bookmarkData
                 saveBookmarks()
             }
@@ -99,9 +99,12 @@ class FileTransferManager {
     
     /// Access a path using security-scoped bookmark
     static func accessViaBookmark(path: String) -> Bool {
-        // Thread-safe dictionary read with unfair lock
-        let bookmarkData = bookmarkLock.withLock {
-            return securityScopedBookmarks[path]
+        // Thread-safe dictionary read with serial queue
+        var bookmarkData: Data?
+        
+        // Safely read from dictionary
+        bookmarkQueue.sync {
+            bookmarkData = securityScopedBookmarks[path]
         }
         
         // Check for existing bookmark
@@ -113,7 +116,7 @@ class FileTransferManager {
                 if isStale {
                     // Update the bookmark if it's stale
                     if let newBookmark = createBookmarkFor(url: url) {
-                        bookmarkLock.withLock {
+                        bookmarkQueue.async {
                             securityScopedBookmarks[path] = newBookmark
                             saveBookmarks()
                         }
@@ -140,8 +143,11 @@ class FileTransferManager {
     
     /// Stop accessing a path using security-scoped bookmark
     static func stopAccessingPath(path: String) {
-        let bookmarkData = bookmarkLock.withLock {
-            return securityScopedBookmarks[path]
+        var bookmarkData: Data?
+        
+        // Safely read from dictionary
+        bookmarkQueue.sync {
+            bookmarkData = securityScopedBookmarks[path]
         }
         
         if let bookmarkData = bookmarkData {
@@ -155,32 +161,35 @@ class FileTransferManager {
         }
     }
     
-    /// Save bookmarks to user defaults - FİXED for thread safety
+    /// Save bookmarks to user defaults - Simple thread-safe version
     private static func saveBookmarks() {
-        // Get the encoded bookmarks in a thread-safe way
-        let encodedBookmarks: [String: String] = bookmarkLock.withLock {
-            // Güvenli bir şekilde dictionary'yi mapValues ile dönüştürüyoruz
-            return Dictionary(uniqueKeysWithValues: securityScopedBookmarks.map { key, data in
-                (key, data.base64EncodedString())
-            })
+        // Çalıştığımız thread zaten serial queue olduğu için
+        // thread safety için ekstra bir şey yapmamız gerekmiyor
+        var bookmarksCopy: [String: String] = [:]
+        
+        // Dictionary'yi Base64 stringlere dönüştür
+        for (key, data) in securityScopedBookmarks {
+            bookmarksCopy[key] = data.base64EncodedString()
         }
         
         // Save to UserDefaults
-        UserDefaults.standard.set(encodedBookmarks, forKey: "MediaForgeBookmarks")
+        UserDefaults.standard.set(bookmarksCopy, forKey: "MediaForgeBookmarks")
     }
     
-    /// Load bookmarks from user defaults - FİXED for thread safety
+    /// Load bookmarks from user defaults - Thread-safe version
     private static func loadBookmarks() {
         if let encoded = UserDefaults.standard.dictionary(forKey: "MediaForgeBookmarks") as? [String: String] {
-            let loadedBookmarks = encoded.compactMapValues { base64String in
+            var loadedBookmarks: [String: Data] = [:]
+            
+            // Base64 string'leri Data'ya dönüştür
+            for (key, base64String) in encoded {
                 if let data = Data(base64Encoded: base64String) {
-                    return data
+                    loadedBookmarks[key] = data
                 }
-                return nil
             }
             
-            // Thread-safe update with unfair lock
-            bookmarkLock.withLock {
+            // Thread-safe dictionary update - serial queue
+            bookmarkQueue.async {
                 securityScopedBookmarks = loadedBookmarks
             }
         }
@@ -196,6 +205,38 @@ class FileTransferManager {
             return digest.map { String(format: "%02hhx", $0) }.joined()
         } catch {
             print("MD5 calculation error: \(error.localizedDescription)")
+            return nil
+        }
+    }
+    
+    /// Calculate SHA1 checksum for a file
+    static func calculateSHA1(for filePath: String) -> String? {
+        do {
+            let fileURL = URL(fileURLWithPath: filePath)
+            let data = try Data(contentsOf: fileURL)
+            
+            let digest = Insecure.SHA1.hash(data: data)
+            return digest.map { String(format: "%02hhx", $0) }.joined()
+        } catch {
+            print("SHA1 calculation error: \(error.localizedDescription)")
+            return nil
+        }
+    }
+    
+    /// Calculate xxHash64 checksum for a file
+    static func calculateXXHash64(for filePath: String) -> String? {
+        do {
+            let fileURL = URL(fileURLWithPath: filePath)
+            let data = try Data(contentsOf: fileURL)
+            
+            // Use our XXHasher implementation
+            var hasher = XXHasher(seed: 0)
+            hasher.update(data: data)
+            let hash = hasher.finalize()
+            
+            return String(format: "%016llx", hash)
+        } catch {
+            print("xxHash64 calculation error: \(error.localizedDescription)")
             return nil
         }
     }
@@ -387,21 +428,46 @@ class FileTransferManager {
                 if fileSize > 100_000_000 { // 100MB üzeri için
                     // Direkt FileManager.copyItem kullan - daha optimize ve hızlı
                     print("Using fast copy for large file (\(fileSize) bytes)")
-                    try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
                     
-                    // Dosya boyutunu doğrulayın
-                    let destSize = DiskManager.getSize(of: destinationPath)
-                    if destSize != fileSize {
-                        print("Size mismatch after copy: source=\(fileSize), dest=\(destSize)")
-                        try? FileManager.default.removeItem(at: destinationURL)
-                        throw TransferError.checksumMismatch
+                    // Büyük dosyalarda ara ilerleme güncellemeleri için timer kullan
+                    // Bu şekilde progress bar daha düzgün ilerleyecek
+                    let updateTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { _ in
+                        let destSize = DiskManager.getSize(of: destinationPath)
+                        if destSize > 0 {
+                            // Dosyanın ne kadarının kopyalandığını kontrol et
+                            DispatchQueue.main.async {
+                                // Kopyalanmış boyut transferi boyutunu geçmesin
+                                let reportedSize = min(destSize, fileSize)
+                                progressHandler(reportedSize, fileSize, sourceFileName)
+                                progress.completedUnitCount = Int64(Double(reportedSize) / Double(fileSize) * 100)
+                            }
+                        }
                     }
                     
-                    // İşlem tamamlandı, progress bildirimi
-                    DispatchQueue.main.async {
-                        progressHandler(fileSize, fileSize, sourceFileName)
+                    do {
+                        try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+                        // Timer'ı durdur
+                        updateTimer.invalidate()
+                        
+                        // Dosya boyutunu doğrulayın
+                        let destSize = DiskManager.getSize(of: destinationPath)
+                        if destSize != fileSize {
+                            print("Size mismatch after copy: source=\(fileSize), dest=\(destSize)")
+                            try? FileManager.default.removeItem(at: destinationURL)
+                            throw TransferError.checksumMismatch
+                        }
+                        
+                        // İşlem tamamlandı, progress bildirimi
+                        DispatchQueue.main.async {
+                            progressHandler(fileSize, fileSize, sourceFileName)
+                        }
+                        completionHandler(.success("File copied successfully"))
+                    } catch {
+                        // Timer'ı durdur
+                        updateTimer.invalidate()
+                        throw error
                     }
-                    completionHandler(.success("File copied successfully"))
+                    
                     return
                 }
                 
@@ -516,11 +582,20 @@ class FileTransferManager {
                         totalBytesRead += Int64(bytesRead)
                         
                         // UI güncellemelerini main thread'de yap
-                        DispatchQueue.main.async {
-                            progressHandler(totalBytesRead, fileSize, sourceFileName)
-                            
-                            // Update progress
-                            progress.completedUnitCount = Int64(Double(totalBytesRead) / Double(fileSize) * 100)
+                        // Daha sık güncellemeler için condition ekleyelim
+                        // Her 128KB'da bir güncelleme yapalım veya 100ms geçtiyse
+                        var lastUpdateTime = Date()
+                        let shouldUpdate = (totalBytesRead % (128 * 1024) == 0) || 
+                                           (Date().timeIntervalSince(lastUpdateTime) > 0.1)
+                        
+                        if shouldUpdate {
+                            lastUpdateTime = Date()
+                            DispatchQueue.main.async {
+                                progressHandler(totalBytesRead, fileSize, sourceFileName)
+                                
+                                // Update progress
+                                progress.completedUnitCount = Int64(Double(totalBytesRead) / Double(fileSize) * 100)
+                            }
                         }
                     } else if bytesRead < 0 {
                         // Error occurred
@@ -862,15 +937,18 @@ class FileTransferManager {
                         fileSize = DiskManager.getSize(of: filePath)
                     }
                     
-                    let fileName = URL(fileURLWithPath: filePath).lastPathComponent
+                    let _ = URL(fileURLWithPath: filePath).lastPathComponent
                     
                     // Create a file-level progress handler
-                    let fileProgressHandler: (Int64, Int64, String) -> Void = { bytesTransferred, totalBytes, name in
+                    let fileProgressHandler: (Int64, Int64, String) -> Void = { bytesTransferred, totalBytes, _ in
                         // Calculation of progress has to be thread-safe
                         let adjustedTransferred = copiedSize + bytesTransferred
                         
                         // Create a status message showing progress with file counts
-                        let statusMessage = "Copying \(name) - \(completedFiles + 1)/\(filesToCopy.count) files"
+                        // Dosya transferi başlar başlamaz sayacı güncelle, artık +1 kullanmıyoruz
+                        // Bu şekilde sayaç daha düzgün artacak
+                        let currentFileIndex = fileIndex + (i - fileIndex)
+                        let statusMessage = "Copying \(relativePath) - \(currentFileIndex)/\(filesToCopy.count) files"
                         
                         // UI updates must be on main thread
                         DispatchQueue.main.async {
@@ -1012,5 +1090,522 @@ class FileTransferManager {
         // Implementation for cancellation logic
         // This would need to access the Progress object stored in the transfer
         print("Attempting to cancel transfer: \(transfer.source.name) -> \(transfer.destination.name)")
+    }
+    
+    /// Cascading copy mode - determines how transfers are prioritized
+    enum CascadingCopyMode {
+        case disabled            // Standard copy - all destinations at once
+        case firstRunPriority    // First run to fast destination, then second run
+        case secondaryFromFirst  // First run followed immediately by transfers from first destination
+        
+        var description: String {
+            switch self {
+            case .disabled:
+                return "Disabled (Standard Copy)"
+            case .firstRunPriority:
+                return "First Run Priority"
+            case .secondaryFromFirst:
+                return "Complete Transfer from First Destination"
+            }
+        }
+    }
+    
+    /// Report format types for generating transfer reports
+    enum ReportFormat: String, CaseIterable, Identifiable {
+        case pdf = "PDF"
+        case html = "HTML"
+        case csv = "CSV"
+        case json = "JSON"
+        
+        var id: String { self.rawValue }
+        
+        var fileExtension: String {
+            self.rawValue.lowercased()
+        }
+    }
+    
+    /// Transfer a file with cascading copy feature
+    /// - Parameters:
+    ///   - sourcePath: Source file path
+    ///   - destinations: Array of destination paths
+    ///   - preset: Transfer preset to use
+    ///   - progressHandler: Progress update handler
+    ///   - completionHandler: Called when transfer is complete
+    static func transferWithCascading(
+        sourcePath: String,
+        destinations: [String],
+        preset: TransferPreset,
+        progressHandler: @escaping (Double, Int64, Int64, String, String) -> Void,
+        completionHandler: @escaping (Result<[String], Error>) -> Void
+    ) {
+        // Validate source path
+        guard FileManager.default.fileExists(atPath: sourcePath) else {
+            completionHandler(.failure(TransferError.fileNotFound))
+            return
+        }
+        
+        // Must have at least one destination
+        guard !destinations.isEmpty else {
+            completionHandler(.failure(TransferError.destinationPathInvalid))
+            return
+        }
+        
+        // Skip if preset explicitly disables cascading or only one destination
+        let cascadingMode: CascadingCopyMode = destinations.count < 2 || !preset.isCascadingEnabled ? .disabled : .secondaryFromFirst
+        
+        switch cascadingMode {
+        case .disabled:
+            // Standard copy to all destinations simultaneously
+            transferFileToMultipleDestinations(
+                sourcePath: sourcePath, 
+                destinationPaths: destinations,
+                checksumMethod: preset.checksumAlgorithm.rawValue,
+                verificationBehavior: preset.verificationBehavior.rawValue,
+                progressHandler: progressHandler,
+                completionHandler: completionHandler
+            )
+            
+        case .firstRunPriority, .secondaryFromFirst:
+            // First, get the primary destination (assumed to be fastest)
+            let primaryDestination = destinations.first!
+            let secondaryDestinations = Array(destinations.dropFirst())
+            
+            // First run to primary destination
+            transferFile(
+                sourcePath: sourcePath,
+                destinationPath: primaryDestination,
+                checksumMethod: preset.checksumAlgorithm.rawValue,
+                verificationBehavior: preset.verificationBehavior.rawValue,
+                progressHandler: { bytesTransferred, totalBytes, fileName, status in
+                    // Report progress with indication this is first run
+                    progressHandler(Double(bytesTransferred) / Double(totalBytes), bytesTransferred, totalBytes, fileName, "First Run: \(status)")
+                }, 
+                completionHandler: { result in
+                    switch result {
+                    case .success(let primaryDestPath):
+                        // First run completed successfully, now start second run from primary dest to other destinations
+                        let primaryFilePath = URL(fileURLWithPath: primaryDestPath).path
+                        
+                        // After first run is complete, transfer to all secondary destinations
+                        transferFileToMultipleDestinations(
+                            sourcePath: primaryFilePath, 
+                            destinationPaths: secondaryDestinations,
+                            checksumMethod: preset.checksumAlgorithm.rawValue,
+                            verificationBehavior: preset.verificationBehavior.rawValue, 
+                            progressHandler: { progress, bytesTransferred, totalBytes, fileName, status in
+                                // Report progress with indication this is second run
+                                progressHandler(progress, bytesTransferred, totalBytes, fileName, "Second Run: \(status)")
+                            },
+                            completionHandler: { secondResult in
+                                switch secondResult {
+                                case .success(let allPaths):
+                                    // Return all paths including the primary destination
+                                    completionHandler(.success([primaryDestPath] + allPaths))
+                                case .failure(let error):
+                                    completionHandler(.failure(error))
+                                }
+                            }
+                        )
+                    case .failure(let error):
+                        completionHandler(.failure(error))
+                    }
+                }
+            )
+        }
+    }
+    
+    /// Generate a transfer report
+    /// - Parameters:
+    ///   - transfers: Completed transfers to include in report
+    ///   - format: Report format
+    ///   - outputPath: Where to save the report
+    ///   - completionHandler: Called when report is generated
+    static func generateReport(
+        transfers: [FileTransfer],
+        format: ReportFormat,
+        outputPath: String,
+        completionHandler: @escaping (Result<String, Error>) -> Void
+    ) {
+        // Create a background queue for report generation
+        let reportQueue = DispatchQueue(label: "com.mediaforge.reportGeneration", qos: .userInitiated)
+        
+        reportQueue.async {
+            // Skip if no transfers
+            guard !transfers.isEmpty else {
+                DispatchQueue.main.async {
+                    completionHandler(.failure(NSError(domain: "com.mediaforge.reports", code: 1, userInfo: [NSLocalizedDescriptionKey: "No transfers to include in report"])))
+                }
+                return
+            }
+            
+            // Ensure output directory exists
+            let outputURL = URL(fileURLWithPath: outputPath)
+            let outputDir = outputURL.deletingLastPathComponent()
+            
+            do {
+                if !FileManager.default.fileExists(atPath: outputDir.path) {
+                    try FileManager.default.createDirectory(at: outputDir, withIntermediateDirectories: true)
+                }
+                
+                // Generate report content based on format
+                var reportContent = ""
+                
+                switch format {
+                case .pdf:
+                    // Generate PDF (placeholder - would use a PDF generation library in reality)
+                    reportContent = generatePDFReport(transfers: transfers)
+                case .html:
+                    reportContent = generateHTMLReport(transfers: transfers)
+                case .csv:
+                    reportContent = generateCSVReport(transfers: transfers)
+                case .json:
+                    reportContent = generateJSONReport(transfers: transfers)
+                }
+                
+                // Write report to file
+                try reportContent.write(to: outputURL, atomically: true, encoding: .utf8)
+                
+                // Return success on main thread
+                DispatchQueue.main.async {
+                    completionHandler(.success(outputPath))
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    completionHandler(.failure(error))
+                }
+            }
+        }
+    }
+    
+    /// Generate a PDF report (placeholder implementation)
+    private static func generatePDFReport(transfers: [FileTransfer]) -> String {
+        // In a real implementation, we'd use a PDF generation library
+        // This is a placeholder that would be replaced with actual PDF generation code
+        
+        var content = "MediaForge Transfer Report\n"
+        content += "=======================\n\n"
+        
+        content += "Generated: \(Date())\n\n"
+        
+        for (index, transfer) in transfers.enumerated() {
+            content += "Transfer #\(index + 1)\n"
+            content += "Source: \(transfer.source.name)\n"
+            content += "Destination: \(transfer.destination.name)\n"
+            content += "Status: \(transfer.status.description)\n"
+            content += "Files: \(transfer.completedFiles)/\(transfer.totalFiles)\n"
+            content += "Total Size: \(ByteCountFormatter.string(fromByteCount: transfer.totalBytesToTransfer, countStyle: .file))\n"
+            content += "-------------------\n"
+        }
+        
+        return content
+    }
+    
+    /// Generate an HTML report
+    private static func generateHTMLReport(transfers: [FileTransfer]) -> String {
+        var html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>MediaForge Transfer Report</title>
+            <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+                .report { max-width: 900px; margin: 0 auto; padding: 20px; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
+                th { background-color: #f2f2f2; }
+                .success { color: green; }
+                .failure { color: red; }
+                .header { border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
+            </style>
+        </head>
+        <body>
+            <div class="report">
+                <div class="header">
+                    <h1>MediaForge Transfer Report</h1>
+                    <p>Generated: \(Date())</p>
+                </div>
+                
+                <h2>Transfer Summary</h2>
+                <table>
+                    <tr>
+                        <th>#</th>
+                        <th>Source</th>
+                        <th>Destination</th>
+                        <th>Status</th>
+                        <th>Files</th>
+                        <th>Size</th>
+                    </tr>
+        """
+        
+        for (index, transfer) in transfers.enumerated() {
+            let statusClass = transfer.status == .completed ? "success" : "failure"
+            
+            html += """
+            <tr>
+                <td>\(index + 1)</td>
+                <td>\(transfer.source.name)</td>
+                <td>\(transfer.destination.name)</td>
+                <td class="\(statusClass)">\(transfer.status.description)</td>
+                <td>\(transfer.completedFiles)/\(transfer.totalFiles)</td>
+                <td>\(ByteCountFormatter.string(fromByteCount: transfer.totalBytesToTransfer, countStyle: .file))</td>
+            </tr>
+            """
+        }
+        
+        html += """
+                </table>
+            </div>
+        </body>
+        </html>
+        """
+        
+        return html
+    }
+    
+    /// Generate a CSV report
+    private static func generateCSVReport(transfers: [FileTransfer]) -> String {
+        var csv = "Index,Source,Destination,Status,CompletedFiles,TotalFiles,TotalSize\n"
+        
+        for (index, transfer) in transfers.enumerated() {
+            csv += "\(index + 1),"
+            csv += "\"\(transfer.source.name)\","
+            csv += "\"\(transfer.destination.name)\","
+            csv += "\"\(transfer.status.description)\","
+            csv += "\(transfer.completedFiles),"
+            csv += "\(transfer.totalFiles),"
+            csv += "\"\(ByteCountFormatter.string(fromByteCount: transfer.totalBytesToTransfer, countStyle: .file))\"\n"
+        }
+        
+        return csv
+    }
+    
+    /// Generate a JSON report
+    private static func generateJSONReport(transfers: [FileTransfer]) -> String {
+        var reportData: [String: Any] = [:]
+        reportData["timestamp"] = ISO8601DateFormatter().string(from: Date())
+        reportData["totalTransfers"] = transfers.count
+        
+        var transfersArray: [[String: Any]] = []
+        
+        for (index, transfer) in transfers.enumerated() {
+            var transferDict: [String: Any] = [:]
+            transferDict["index"] = index + 1
+            transferDict["source"] = transfer.source.name
+            transferDict["destinationName"] = transfer.destination.name
+            transferDict["destinationPath"] = transfer.destination.path
+            transferDict["status"] = transfer.status.description
+            transferDict["completedFiles"] = transfer.completedFiles
+            transferDict["totalFiles"] = transfer.totalFiles
+            transferDict["totalBytes"] = transfer.totalBytesToTransfer
+            transferDict["bytesTransferred"] = transfer.bytesTransferred
+            
+            transfersArray.append(transferDict)
+        }
+        
+        reportData["transfers"] = transfersArray
+        
+        do {
+            let jsonData = try JSONSerialization.data(withJSONObject: reportData, options: .prettyPrinted)
+            return String(data: jsonData, encoding: .utf8) ?? "{}"
+        } catch {
+            print("Error generating JSON: \(error)")
+            return "{\"error\": \"Failed to generate JSON report\"}"
+        }
+    }
+    
+    /// Transfer a file to a single destination
+    /// - Parameters:
+    ///   - sourcePath: Source file path
+    ///   - destinationPath: Destination path
+    ///   - checksumMethod: Checksum method to use
+    ///   - verificationBehavior: How to verify the file
+    ///   - progressHandler: Progress updates
+    ///   - completionHandler: Called when transfer completes
+    static func transferFile(
+        sourcePath: String,
+        destinationPath: String,
+        checksumMethod: String,
+        verificationBehavior: String,
+        progressHandler: @escaping (Int64, Int64, String, String) -> Void,
+        completionHandler: @escaping (Result<String, Error>) -> Void
+    ) {
+        // Get file URL
+        let sourceURL = URL(fileURLWithPath: sourcePath)
+        let destinationURL = URL(fileURLWithPath: destinationPath).appendingPathComponent(sourceURL.lastPathComponent)
+        
+        // Create destination directory if needed
+        do {
+            let destinationFolder = destinationURL.deletingLastPathComponent()
+            if !FileManager.default.fileExists(atPath: destinationFolder.path) {
+                try FileManager.default.createDirectory(at: destinationFolder, withIntermediateDirectories: true)
+            }
+        } catch {
+            completionHandler(.failure(error))
+            return
+        }
+        
+        // Get file info
+        let fileManager = FileManager.default
+        
+        do {
+            let fileAttributes = try fileManager.attributesOfItem(atPath: sourcePath)
+            let fileSize = fileAttributes[.size] as? Int64 ?? 0
+            let fileName = sourceURL.lastPathComponent
+            
+            // Start the transfer
+            progressHandler(0, fileSize, fileName, "Starting transfer")
+            
+            // Simple file copy for demonstration
+            try fileManager.copyItem(at: sourceURL, to: destinationURL)
+            
+            // Verify the file if requested
+            if verificationBehavior != "none" {
+                progressHandler(fileSize, fileSize, fileName, "Verifying file")
+                
+                // Calculate checksums
+                let sourceChecksum: String?
+                let destChecksum: String?
+                
+                switch checksumMethod {
+                case "xxHash64":
+                    sourceChecksum = calculateXXHash64(for: sourcePath)
+                    destChecksum = calculateXXHash64(for: destinationURL.path)
+                case "md5":
+                    sourceChecksum = calculateMD5(for: sourcePath)
+                    destChecksum = calculateMD5(for: destinationURL.path)
+                case "sha1":
+                    sourceChecksum = calculateSHA1(for: sourcePath)
+                    destChecksum = calculateSHA1(for: destinationURL.path)
+                default:
+                    // Default to xxHash64 as it's fastest
+                    sourceChecksum = calculateXXHash64(for: sourcePath)
+                    destChecksum = calculateXXHash64(for: destinationURL.path)
+                }
+                
+                // Compare checksums
+                if sourceChecksum != destChecksum {
+                    // Verification failed
+                    let error = NSError(
+                        domain: "com.mediaforge.transfer",
+                        code: 2,
+                        userInfo: [NSLocalizedDescriptionKey: "Verification failed for \(fileName)"]
+                    )
+                    
+                    // Try to clean up the failed file
+                    try? fileManager.removeItem(at: destinationURL)
+                    
+                    completionHandler(.failure(error))
+                    return
+                }
+            }
+            
+            // Complete the transfer
+            progressHandler(fileSize, fileSize, fileName, "Transfer complete")
+            completionHandler(.success(destinationURL.path))
+        } catch {
+            completionHandler(.failure(error))
+        }
+    }
+    
+    /// Transfer a file to multiple destinations
+    /// - Parameters:
+    ///   - sourcePath: Source file path
+    ///   - destinationPaths: Array of destination paths
+    ///   - checksumMethod: Checksum method to use
+    ///   - verificationBehavior: How to verify the file
+    ///   - progressHandler: Progress updates
+    ///   - completionHandler: Called when all transfers complete
+    static func transferFileToMultipleDestinations(
+        sourcePath: String,
+        destinationPaths: [String],
+        checksumMethod: String,
+        verificationBehavior: String,
+        progressHandler: @escaping (Double, Int64, Int64, String, String) -> Void,
+        completionHandler: @escaping (Result<[String], Error>) -> Void
+    ) {
+        // Skip if no destinations
+        guard !destinationPaths.isEmpty else {
+            completionHandler(.success([]))
+            return
+        }
+        
+        let sourceURL = URL(fileURLWithPath: sourcePath)
+        let fileName = sourceURL.lastPathComponent
+        
+        // Get file info
+        let fileManager = FileManager.default
+        
+        do {
+            let fileAttributes = try fileManager.attributesOfItem(atPath: sourcePath)
+            let fileSize = fileAttributes[.size] as? Int64 ?? 0
+            
+            // Track completed transfers
+            var completedDestinations: [String] = []
+            var failedDestinations: [(String, Error)] = []
+            let group = DispatchGroup()
+            let queue = DispatchQueue(label: "com.mediaforge.transfers", attributes: .concurrent)
+            let progressLock = NSLock()
+            
+            // Process each destination
+            for destinationPath in destinationPaths {
+                group.enter()
+                
+                queue.async {
+                    self.transferFile(
+                        sourcePath: sourcePath,
+                        destinationPath: destinationPath,
+                        checksumMethod: checksumMethod,
+                        verificationBehavior: verificationBehavior,
+                        progressHandler: { bytesTransferred, totalBytes, name, status in
+                            // Update progress with normalized details
+                            // Lock to avoid race conditions on progress reporting from different destinations
+                            progressLock.lock()
+                            let progress = Double(bytesTransferred) / Double(totalBytes)
+                            progressHandler(progress, bytesTransferred, totalBytes, name, "\(destinationPath): \(status)")
+                            progressLock.unlock()
+                        },
+                        completionHandler: { result in
+                            switch result {
+                            case .success(let destPath):
+                                // Keep track of completed destination
+                                progressLock.lock()
+                                completedDestinations.append(destPath)
+                                progressLock.unlock()
+                            case .failure(let error):
+                                // Keep track of failed destination
+                                progressLock.lock()
+                                failedDestinations.append((destinationPath, error))
+                                progressLock.unlock()
+                            }
+                            
+                            group.leave()
+                        }
+                    )
+                }
+            }
+            
+            // When all transfers complete
+            group.notify(queue: .main) {
+                if failedDestinations.isEmpty {
+                    // All transfers succeeded
+                    completionHandler(.success(completedDestinations))
+                } else {
+                    // At least one transfer failed
+                    let errors = failedDestinations.map { "\($0.0): \($0.1.localizedDescription)" }.joined(separator: ", ")
+                    let error = NSError(
+                        domain: "com.mediaforge.transfer",
+                        code: 3,
+                        userInfo: [
+                            NSLocalizedDescriptionKey: "One or more transfers failed: \(errors)",
+                            "failedDestinations": failedDestinations.map { $0.0 }
+                        ]
+                    )
+                    
+                    completionHandler(.failure(error))
+                }
+            }
+        } catch {
+            completionHandler(.failure(error))
+        }
     }
 } 

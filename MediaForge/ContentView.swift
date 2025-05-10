@@ -14,7 +14,7 @@ struct ContentView: View {
     @State private var animateBackground = false
     
     enum Tab {
-        case dashboard, disks, transfers, settings
+        case dashboard, disks, transfers, settings, presets
     }
     
     var body: some View {
@@ -37,6 +37,7 @@ struct ContentView: View {
                                     .padding(.trailing, -10)
                             }
                         )
+                        .clipShape(RoundedRectangle(cornerRadius: 20))
                         .transition(.move(edge: .leading))
                 }
                 
@@ -69,6 +70,31 @@ struct ContentView: View {
                                     .clipShape(Circle())
                             }
                             .buttonStyle(.plain)
+                            
+                            // Status message
+                            if !viewModel.statusMessage.isEmpty {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "info.circle.fill")
+                                        .foregroundColor(.blue)
+                                    Text(viewModel.statusMessage)
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.white.opacity(0.9))
+                                        .lineLimit(1)
+                                    
+                                    Button {
+                                        viewModel.statusMessage = ""
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(.white.opacity(0.6))
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color.blue.opacity(0.1))
+                                .cornerRadius(20)
+                            }
                             
                             Spacer()
                             
@@ -118,8 +144,10 @@ struct ContentView: View {
                                 DisksView(viewModel: viewModel)
                             case .transfers:
                                 TransfersView(viewModel: viewModel)
+                            case .presets:
+                                TransferPresetsView(viewModel: viewModel)
                             case .settings:
-                                settingsView
+                                SettingsView(viewModel: viewModel)
                             }
                         }
                         .padding(10)
@@ -141,6 +169,11 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ShowDisksView"))) { _ in
             withAnimation {
                 selectedTab = .disks
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ShowDashboardView"))) { _ in
+            withAnimation {
+                selectedTab = .dashboard
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ShowTransfersView"))) { _ in
@@ -168,7 +201,7 @@ struct ContentView: View {
     // Sidebar view
     var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Logo area
+            // Logo area with improved styling
             VStack(alignment: .leading, spacing: 5) {
                 Text("MEDIA")
                     .font(.system(size: 24, weight: .black))
@@ -187,68 +220,188 @@ struct ContentView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 20)
             .padding(.vertical, 25)
+            .background(
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color(red: 0.12, green: 0.12, blue: 0.18),
+                        Color(red: 0.15, green: 0.15, blue: 0.22)
+                    ]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
             
             Divider()
                 .background(Color.white.opacity(0.15))
                 .padding(.horizontal, 20)
             
-            // Navigation menu
-            VStack(spacing: 5) {
+            // Navigation menu with improved styling
+            VStack(spacing: 8) {
+                Spacer().frame(height: 10)
                 navButton(title: "Dashboard", icon: "square.grid.2x2", tab: .dashboard)
-                navButton(title: "Disks", icon: "externaldrive", tab: .disks)
+                navButton(title: "Disks", icon: "externaldrive.fill", tab: .disks)
                 navButton(title: "Transfers", icon: "arrow.up.arrow.down", tab: .transfers)
+                navButton(title: "Presets", icon: "list.bullet.rectangle", tab: .presets)
                 navButton(title: "Settings", icon: "gear", tab: .settings)
             }
             .padding(.top, 20)
             
             Spacer()
             
-            // Status section
-            VStack(alignment: .leading, spacing: 8) {
+            // Status section with improved styling
+            VStack(alignment: .leading, spacing: 15) {
                 HStack {
                     Circle()
                         .fill(viewModel.activeTransfers.isEmpty ? Color.green : Color.orange)
-                        .frame(width: 8, height: 8)
+                        .frame(width: 10, height: 10)
+                        .shadow(color: viewModel.activeTransfers.isEmpty ? Color.green.opacity(0.5) : Color.orange.opacity(0.5), radius: 5)
                     
                     Text(viewModel.activeTransfers.isEmpty ? "System Ready" : "Transfers Active")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.white.opacity(0.8))
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.white.opacity(0.9))
                 }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.black.opacity(0.2))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(
+                                    LinearGradient(
+                                        gradient: Gradient(colors: [
+                                            viewModel.activeTransfers.isEmpty ? Color.green.opacity(0.3) : Color.orange.opacity(0.3),
+                                            Color.clear
+                                        ]),
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    ),
+                                    lineWidth: 1
+                                )
+                        )
+                )
                 
                 HStack {
                     Text("Disks Connected:")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.white.opacity(0.6))
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.white.opacity(0.7))
+                    
+                    Spacer()
                     
                     Text("\(viewModel.availableDisks.count)")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.white.opacity(0.9))
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 26, height: 26)
+                        .background(
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        gradient: Gradient(colors: [
+                                            Color(red: 0.3, green: 0.3, blue: 0.6),
+                                            Color(red: 0.2, green: 0.2, blue: 0.4)
+                                        ]),
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .shadow(color: Color.black.opacity(0.3), radius: 2)
+                        )
                 }
+                .padding(.horizontal, 20)
             }
-            .padding(15)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.black.opacity(0.2))
-            .cornerRadius(10)
-            .padding(.horizontal, 15)
-            .padding(.bottom, 20)
+            .padding(.bottom, 25)
+            .padding(.horizontal, 10)
+            .background(
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color(red: 0.12, green: 0.12, blue: 0.18).opacity(0.5),
+                        Color(red: 0.15, green: 0.15, blue: 0.22).opacity(0.8)
+                    ]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
         }
+        .background(
+            ZStack {
+                // Base background
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color(red: 0.15, green: 0.15, blue: 0.22),
+                        Color(red: 0.10, green: 0.10, blue: 0.15)
+                    ]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                
+                // Subtle pattern overlay
+                Rectangle()
+                    .fill(Color.white.opacity(0.03))
+                    .mask(
+                        Image(systemName: "rectangle.grid.3x2")
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .opacity(0.3)
+                    )
+                    .blur(radius: 0.5)
+            }
+        )
+        .overlay(
+            Rectangle()
+                .stroke(
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color.white.opacity(0.1),
+                            Color.white.opacity(0.05),
+                            Color.clear
+                        ]),
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 1
+                )
+                .frame(width: 1),
+            alignment: .trailing
+        )
+        .contentShape(Rectangle())
     }
     
-    // Navigation button
+    // Navigation button with improved styling
     func navButton(title: String, icon: String, tab: Tab) -> some View {
         Button {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                 selectedTab = tab
             }
         } label: {
-            HStack(spacing: 12) {
-                Image(systemName: icon)
-                    .font(.system(size: 16))
-                    .foregroundColor(selectedTab == tab ? .white : .white.opacity(0.7))
+            HStack(spacing: 14) {
+                // Icon with improved styling
+                ZStack {
+                    if selectedTab == tab {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        Color.white.opacity(0.1),
+                                        Color.white.opacity(0.05)
+                                    ]),
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 36, height: 36)
+                    }
+                    
+                    Image(systemName: icon)
+                        .font(.system(size: 16, weight: selectedTab == tab ? .semibold : .regular))
+                        .foregroundColor(selectedTab == tab ? .white : .white.opacity(0.7))
+                        .frame(width: 36, height: 36)
+                }
                 
                 Text(title)
                     .font(.system(size: 15, weight: selectedTab == tab ? .semibold : .medium))
                     .foregroundColor(selectedTab == tab ? .white : .white.opacity(0.7))
+                    .fixedSize(horizontal: true, vertical: false)
+                    .lineLimit(1)
                 
                 Spacer()
                 
@@ -256,26 +409,49 @@ struct ContentView: View {
                     Circle()
                         .fill(Color.white)
                         .frame(width: 6, height: 6)
+                        .shadow(color: Color.white.opacity(0.5), radius: 2)
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.vertical, 12)
+            .padding(.vertical, 14)
             .background(
-                selectedTab == tab ?
-                LinearGradient(
-                    gradient: Gradient(colors: [Color.purple.opacity(0.3), Color.blue.opacity(0.2)]),
-                    startPoint: .leading,
-                    endPoint: .trailing
-                ) : 
-                LinearGradient(
-                    gradient: Gradient(colors: [Color.clear, Color.clear]),
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
+                ZStack {
+                    if selectedTab == tab {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        Color(red: 0.2, green: 0.2, blue: 0.33).opacity(0.9),
+                                        Color(red: 0.15, green: 0.15, blue: 0.25).opacity(0.8)
+                                    ]),
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(
+                                        LinearGradient(
+                                            gradient: Gradient(colors: [
+                                                Color.white.opacity(0.2),
+                                                Color.white.opacity(0.05),
+                                                Color.clear
+                                            ]),
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        ),
+                                        lineWidth: 1
+                                    )
+                            )
+                            .shadow(color: Color.black.opacity(0.3), radius: 2, x: 0, y: 2)
+                    }
+                }
             )
-            .cornerRadius(10)
+            .cornerRadius(12)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PlainButtonStyle())
+        .padding(.horizontal, 10)
+        .contentShape(Rectangle())
     }
     
     // Background gradient with animation
@@ -375,7 +551,7 @@ struct ContentView: View {
                 HStack(spacing: 15) {
                     // Setup disks action
                     actionButton(
-                        title: "Setup Disks",
+                        title: "Select Devices",
                         icon: "externaldrive.badge.plus",
                         description: "Configure sources and destinations",
                         action: { selectedTab = .disks }
