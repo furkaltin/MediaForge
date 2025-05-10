@@ -6,6 +6,7 @@ struct SettingsView: View {
     
     @State private var selectedSection: SettingsSection = .general
     @State private var showResetAlert = false
+    @State private var isHoveringResetButton = false
     
     // Styling
     private let cornerRadius: CGFloat = 15
@@ -27,31 +28,73 @@ struct SettingsView: View {
             case .appearance: return "paintbrush"
             }
         }
+        
+        var color: Color {
+            switch self {
+            case .general: return .blue
+            case .advanced: return .purple
+            case .verification: return .green
+            case .appearance: return .orange
+            }
+        }
     }
     
     var body: some View {
         VStack(spacing: 0) {
             // Header
-            Text("Settings")
-                .font(.title)
-                .fontWeight(.bold)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding()
-            
-            Divider()
+            ZStack {
+                HStack {
+                    Text("Settings")
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    
+                    Button(action: {
+                        showResetAlert = true
+                    }) {
+                        Label("Reset All", systemImage: "arrow.counterclockwise.circle")
+                            .font(.system(size: 14, weight: .medium))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                Capsule()
+                                    .fill(Color.red.opacity(isHoveringResetButton ? 0.2 : 0.1))
+                            )
+                            .foregroundColor(Color.red.opacity(0.8))
+                    }
+                    .buttonStyle(.plain)
+                    .onHover { hovering in
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isHoveringResetButton = hovering
+                        }
+                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.vertical, 20)
+            }
+            .background(
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color(red: 0.1, green: 0.1, blue: 0.2),
+                        Color(red: 0.15, green: 0.15, blue: 0.25)
+                    ]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
             
             // Content
             HStack(spacing: 0) {
                 // Sidebar
-                VStack(spacing: 1) {
+                VStack(spacing: 0) {
                     ForEach(SettingsSection.allCases) { section in
                         sidebarItem(section)
                     }
                     
                     Spacer()
                 }
-                .frame(width: 200)
-                .background(Color(NSColor.controlBackgroundColor))
+                .frame(width: 220)
+                .background(Color(red: 0.12, green: 0.12, blue: 0.18))
                 
                 // Main content
                 ScrollView {
@@ -68,9 +111,10 @@ struct SettingsView: View {
                             appearanceSettings
                         }
                     }
-                    .padding()
+                    .padding(24)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .background(Color(red: 0.15, green: 0.15, blue: 0.2))
             }
         }
         .alert(isPresented: $showResetAlert) {

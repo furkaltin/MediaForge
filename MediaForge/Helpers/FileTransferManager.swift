@@ -1124,6 +1124,76 @@ class FileTransferManager {
         }
     }
     
+    /// Available checksum algorithms for verification
+    enum ChecksumAlgorithm: String, CaseIterable, Identifiable {
+        case xxHash64 = "xxHash64"
+        case md5 = "MD5"
+        case sha1 = "SHA1"
+        case sha256 = "SHA256"
+        case c4id = "C4ID"
+        case xxh3 = "XXH3"
+        case xxh128 = "XXH128"
+        
+        var id: String { self.rawValue }
+        
+        var description: String {
+            switch self {
+            case .xxHash64: return "xxHash64 (Fast)"
+            case .md5: return "MD5 (Compatible)"
+            case .sha1: return "SHA1 (Secure)"
+            case .sha256: return "SHA256 (Most Secure)"
+            case .c4id: return "C4ID (Industry Standard)"
+            case .xxh3: return "XXH3 (Very Fast)"
+            case .xxh128: return "XXH128 (Fast & Secure)"
+            }
+        }
+        
+        var performanceRating: Int {
+            switch self {
+            case .xxh3: return 10       // Fastest
+            case .xxHash64: return 9
+            case .xxh128: return 8
+            case .c4id: return 7
+            case .md5: return 5
+            case .sha1: return 3
+            case .sha256: return 1      // Slowest
+            }
+        }
+        
+        var securityRating: Int {
+            switch self {
+            case .sha256: return 10     // Most secure
+            case .sha1: return 8
+            case .xxh128: return 7
+            case .c4id: return 6
+            case .md5: return 5
+            case .xxh3: return 3
+            case .xxHash64: return 2    // Least secure
+            }
+        }
+    }
+    
+    /// Available verification behaviors
+    enum VerificationBehavior: String, CaseIterable, Identifiable {
+        case standard = "Standard"
+        case verifySource = "Verify Source"
+        case doubleVerification = "Double Verification"
+        case byteToByte = "Byte-to-Byte"
+        case backgroundVerification = "Background Verification"
+        
+        var id: String { self.rawValue }
+        
+        var description: String {
+            switch self {
+            case .standard: return "Verify checksums after transfer"
+            case .verifySource: return "Calculate checksums before and after transfer"
+            case .doubleVerification: return "Verify transfers twice with different algorithms"
+            case .byteToByte: return "Compare source and destination byte by byte"
+            case .backgroundVerification: return "Continue with next transfers while verifying"
+            }
+        }
+    }
+    
     /// Transfer a file with cascading copy feature
     /// - Parameters:
     ///   - sourcePath: Source file path
@@ -1530,14 +1600,16 @@ class FileTransferManager {
         }
         
         let sourceURL = URL(fileURLWithPath: sourcePath)
-        let fileName = sourceURL.lastPathComponent
+        // Use a placeholder or remove if unused
+        _ = sourceURL.lastPathComponent
         
         // Get file info
         let fileManager = FileManager.default
         
         do {
             let fileAttributes = try fileManager.attributesOfItem(atPath: sourcePath)
-            let fileSize = fileAttributes[.size] as? Int64 ?? 0
+            // Use a placeholder or remove if unused
+            _ = fileAttributes[.size] as? Int64 ?? 0
             
             // Track completed transfers
             var completedDestinations: [String] = []

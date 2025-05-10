@@ -13,6 +13,13 @@ struct ContentView: View {
     @State private var showSidebar: Bool = true
     @State private var animateBackground = false
     
+    // Sheet states
+    @State private var showingSettingsSheet = false
+    @State private var showingElementReview = false
+    
+    // Notification center token
+    @State private var elementReviewToken: NSObjectProtocol?
+    
     enum Tab {
         case dashboard, disks, transfers, settings, presets
     }
@@ -185,16 +192,42 @@ struct ContentView: View {
             withAnimation(Animation.easeInOut(duration: 20).repeatForever(autoreverses: true)) {
                 self.animateBackground = true
             }
+            
+            // Register for ShowElementReviewPanel notification
+            elementReviewToken = NotificationCenter.default.addObserver(
+                forName: Notification.Name("ShowElementReviewPanel"),
+                object: nil,
+                queue: .main
+            ) { _ in
+                showingElementReview = true
+            }
+        }
+        .onDisappear {
+            // Clean up notification observer
+            if let token = elementReviewToken {
+                NotificationCenter.default.removeObserver(token)
+            }
         }
         .alert(isPresented: $viewModel.showPermissionAlert) {
             Alert(
-                title: Text("Permission Required"),
-                message: Text(viewModel.permissionErrorMessage),
-                primaryButton: .default(Text("Settings")) {
-                    viewModel.openSystemSettingsForPermissions()
+                title: Text("Full Disk Access Required"),
+                message: Text("MediaForge needs full disk access to \(viewModel.permissionErrorDisk). Please grant permission in System Preferences > Security & Privacy > Privacy > Full Disk Access."),
+                primaryButton: .default(Text("Open System Preferences")) {
+                    // Open the Security & Privacy pane in System Preferences
+                    NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!)
                 },
                 secondaryButton: .cancel()
             )
+        }
+        .sheet(isPresented: $showingElementReview) {
+            ElementReviewPanelView(viewModel: viewModel) { completed in
+                showingElementReview = false
+                
+                if completed {
+                    // Continue with transfer setup
+                    viewModel.continueAfterElementReview()
+                }
+            }
         }
     }
     

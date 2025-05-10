@@ -164,7 +164,7 @@ struct DisksView: View {
                 VStack(spacing: 20) {
                     Spacer()
                     
-                    Image(systemName: "arrow.up.doc.circle.fill")
+                    Image(systemName: "arrow.up.doc.fill")
                         .font(.system(size: 40))
                         .foregroundColor(.blue.opacity(0.7))
                     
@@ -226,7 +226,7 @@ struct DisksView: View {
                 VStack(spacing: 20) {
                     Spacer()
                     
-                    Image(systemName: "arrow.down.doc.circle.fill")
+                    Image(systemName: "arrow.down.doc.fill")
                         .font(.system(size: 40))
                         .foregroundColor(.green.opacity(0.7))
                     

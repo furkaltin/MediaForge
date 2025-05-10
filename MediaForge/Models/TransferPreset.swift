@@ -85,11 +85,12 @@ class TransferPreset: Identifiable, Codable, ObservableObject {
     @Published var cameraMake: String
     @Published var generateReport: Bool
     @Published var isCascadingEnabled: Bool
+    @Published var customElements: [CustomElement]
     
     enum CodingKeys: String, CodingKey {
         case id, name, folderPattern, customPattern, verificationBehavior
         case checksumAlgorithm, createMHL, projectName, cameraMake
-        case generateReport, isCascadingEnabled
+        case generateReport, isCascadingEnabled, customElements
     }
     
     init(
@@ -103,7 +104,8 @@ class TransferPreset: Identifiable, Codable, ObservableObject {
         projectName: String = "",
         cameraMake: String = "",
         generateReport: Bool = true,
-        isCascadingEnabled: Bool = false
+        isCascadingEnabled: Bool = false,
+        customElements: [CustomElement] = []
     ) {
         self.id = id
         self.name = name
@@ -116,6 +118,7 @@ class TransferPreset: Identifiable, Codable, ObservableObject {
         self.cameraMake = cameraMake
         self.generateReport = generateReport
         self.isCascadingEnabled = isCascadingEnabled
+        self.customElements = customElements
     }
     
     required init(from decoder: Decoder) throws {
@@ -131,6 +134,7 @@ class TransferPreset: Identifiable, Codable, ObservableObject {
         cameraMake = try container.decode(String.self, forKey: .cameraMake)
         generateReport = try container.decode(Bool.self, forKey: .generateReport)
         isCascadingEnabled = try container.decode(Bool.self, forKey: .isCascadingEnabled)
+        customElements = try container.decodeIfPresent([CustomElement].self, forKey: .customElements) ?? []
     }
     
     func encode(to encoder: Encoder) throws {
@@ -146,6 +150,7 @@ class TransferPreset: Identifiable, Codable, ObservableObject {
         try container.encode(cameraMake, forKey: .cameraMake)
         try container.encode(generateReport, forKey: .generateReport)
         try container.encode(isCascadingEnabled, forKey: .isCascadingEnabled)
+        try container.encode(customElements, forKey: .customElements)
     }
     
     /// Create a destination folder path based on the pattern
@@ -178,7 +183,71 @@ class TransferPreset: Identifiable, Codable, ObservableObject {
             pattern = pattern.replacingOccurrences(of: "{Time}", with: currentTime)
             pattern = pattern.replacingOccurrences(of: "{Project}", with: project)
             pattern = pattern.replacingOccurrences(of: "{Camera}", with: camera)
+            
+            // Replace custom elements
+            for element in customElements {
+                pattern = pattern.replacingOccurrences(of: element.templateName, with: element.currentValue)
+            }
+            
             return pattern
+        }
+    }
+    
+    /// Add a new custom element
+    func addCustomElement(_ element: CustomElement) {
+        customElements.append(element)
+    }
+    
+    /// Remove a custom element
+    func removeCustomElement(_ element: CustomElement) {
+        if let index = customElements.firstIndex(where: { $0.id == element.id }) {
+            customElements.remove(at: index)
+        }
+    }
+    
+    /// Update a custom element
+    func updateCustomElement(_ element: CustomElement) {
+        if let index = customElements.firstIndex(where: { $0.id == element.id }) {
+            customElements[index] = element
+        }
+    }
+    
+    /// Get a custom element by name
+    func getCustomElement(name: String) -> CustomElement? {
+        // Check for exact name match or with/without braces
+        let nameWithoutBraces = name.trimmingCharacters(in: CharacterSet(charactersIn: "{}"))
+        let nameWithBraces = "{\(nameWithoutBraces)}"
+        
+        return customElements.first { 
+            $0.name == name || 
+            $0.name == nameWithBraces || 
+            $0.name == nameWithoutBraces 
+        }
+    }
+    
+    /// Parse a string and extract potential custom element names
+    func extractCustomElementNames(from text: String) -> [String] {
+        let pattern = "\\{[^\\{\\}]+\\}"
+        let regex = try? NSRegularExpression(pattern: pattern, options: [])
+        let nsString = text as NSString
+        let matches = regex?.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length)) ?? []
+        
+        return matches.map { match in
+            nsString.substring(with: match.range)
+        }
+    }
+    
+    /// Reset all custom element values to their defaults
+    func resetCustomElements() {
+        for element in customElements {
+            element.resetToDefault()
+        }
+    }
+    
+    /// Increment any counter elements
+    func incrementCounters() {
+        for element in customElements where element.type == .counter {
+            element.incrementCounter()
         }
     }
 }
