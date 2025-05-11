@@ -1,0 +1,78 @@
+{
+  "" : {
+    "dependencies" : "/Users/selincaglar/Desktop/MediaForge/MediaForge/DerivedData/MediaForge/Index.noindex/Build/Intermediates.noindex/MediaForge.build/Debug/MediaForge.build/Objects-normal/x86_64/MediaForge-master.d",
+    "diagnostics" : "/Users/selincaglar/Desktop/MediaForge/MediaForge/DerivedData/MediaForge/Index.noindex/Build/Intermediates.noindex/MediaForge.build/Debug/MediaForge.build/Objects-normal/x86_64/MediaForge-master.dia",
+    "emit-module-dependencies" : "/Users/selincaglar/Desktop/MediaForge/MediaForge/DerivedData/MediaForge/Index.noindex/Build/Intermediates.noindex/MediaForge.build/Debug/MediaForge.build/Objects-normal/x86_64/MediaForge-master-emit-module.d",
+    "emit-module-diagnostics" : "/Users/selincaglar/Desktop/MediaForge/MediaForge/DerivedData/MediaForge/Index.noindex/Build/Intermediates.noindex/MediaForge.build/Debug/MediaForge.build/Objects-normal/x86_64/MediaForge-master-emit-module.dia",
+    "swift-dependencies" : "/Users/selincaglar/Desktop/MediaForge/MediaForge/DerivedData/MediaForge/Index.noindex/Build/Intermediates.noindex/MediaForge.build/Debug/MediaForge.build/Objects-normal/x86_64/MediaForge-master.swiftdeps"
+  },
+  "/Users/selincaglar/Desktop/MediaForge/MediaForge/DerivedData/MediaForge/Index.noindex/Build/Intermediates.noindex/MediaForge.build/Debug/MediaForge.build/DerivedSources/GeneratedAssetSymbols.swift" : {
+
+  },
+  "/Users/selincaglar/Desktop/MediaForge/MediaForge/MediaForge/ContentView.swift" : {
+
+  },
+  "/Users/selincaglar/Desktop/MediaForge/MediaForge/MediaForge/Helpers/DiskManager.swift" : {
+
+  },
+  "/Users/selincaglar/Desktop/MediaForge/MediaForge/MediaForge/Helpers/FileTransferManager.swift" : {
+
+  },
+  "/Users/selincaglar/Desktop/MediaForge/MediaForge/MediaForge/Helpers/MediaHashList.swift" : {
+
+  },
+  "/Users/selincaglar/Desktop/MediaForge/MediaForge/MediaForge/Helpers/XXHasher.swift" : {
+
+  },
+  "/Users/selincaglar/Desktop/MediaForge/MediaForge/MediaForge/MediaForgeApp.swift" : {
+
+  },
+  "/Users/selincaglar/Desktop/MediaForge/MediaForge/MediaForge/Models/CameraFormat.swift" : {
+
+  },
+  "/Users/selincaglar/Desktop/MediaForge/MediaForge/MediaForge/Models/CustomElement.swift" : {
+
+  },
+  "/Users/selincaglar/Desktop/MediaForge/MediaForge/MediaForge/Models/Disk.swift" : {
+
+  },
+  "/Users/selincaglar/Desktop/MediaForge/MediaForge/MediaForge/Models/FileTransfer.swift" : {
+
+  },
+  "/Users/selincaglar/Desktop/MediaForge/MediaForge/MediaForge/Models/MediaForgeViewModel.swift" : {
+
+  },
+  "/Users/selincaglar/Desktop/MediaForge/MediaForge/MediaForge/Models/TransferPreset.swift" : {
+
+  },
+  "/Users/selincaglar/Desktop/MediaForge/MediaForge/MediaForge/Views/CustomElementView.swift" : {
+
+  },
+  "/Users/selincaglar/Desktop/MediaForge/MediaForge/MediaForge/Views/DiskView.swift" : {
+
+  },
+  "/Users/selincaglar/Desktop/MediaForge/MediaForge/MediaForge/Views/DisksView.swift" : {
+
+  },
+  "/Users/selincaglar/Desktop/MediaForge/MediaForge/MediaForge/Views/ElementReviewPanelView.swift" : {
+
+  },
+  "/Users/selincaglar/Desktop/MediaForge/MediaForge/MediaForge/Views/GradientDiskSelectionView.swift" : {
+
+  },
+  "/Users/selincaglar/Desktop/MediaForge/MediaForge/MediaForge/Views/MultipleSourcesDestinationsView.swift" : {
+
+  },
+  "/Users/selincaglar/Desktop/MediaForge/MediaForge/MediaForge/Views/SettingsView.swift" : {
+
+  },
+  "/Users/selincaglar/Desktop/MediaForge/MediaForge/MediaForge/Views/TransferItemView.swift" : {
+
+  },
+  "/Users/selincaglar/Desktop/MediaForge/MediaForge/MediaForge/Views/TransferPresetsView.swift" : {
+
+  },
+  "/Users/selincaglar/Desktop/MediaForge/MediaForge/MediaForge/Views/TransfersView.swift" : {
+
+  }
+}
