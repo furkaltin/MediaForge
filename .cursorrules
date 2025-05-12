@@ -1,0 +1,53 @@
+# MediaForge Cursor Kuralları
+
+## Proje Özellikleri
+- MediaForge, DIT, Still Photographer ve Videographer'lar için geliştirilmiş bir medya transfer ve yönetim uygulamasıdır
+- Offshoot (eski adıyla Hedge) benzeri bir uygulama ancak daha modern arayüz ve gelişmiş özelliklerle
+- Sadece macOS (Sequoia 15.0+) platformu için geliştirilmektedir
+- Swift ve SwiftUI kullanılarak MVVM mimarisi ile geliştirilmektedir
+
+## Dil ve İletişim
+- Tüm iletişim ve dokümantasyon Türkçe dilinde olmalıdır
+- Kod içi yorumlar İngilizce olabilir, ancak kullanıcıya sunulan içerik Türkçe olmalıdır
+- Context7 ve Sequential Thinking yaklaşımlarını kullanarak daha verimli problem çözme sağlanabilir
+
+## Kod Standartları
+- MVVM (Model-View-ViewModel) mimari deseni takip edilmeli
+- SwiftUI modern kod pratikleri ve en iyi uygulamaları takip edilmeli
+- Tüm UI bileşenleri macOS Sequoia tasarım diline uygun olmalı
+- Hata işleme için Result tipi ve hiyerarşik hata tipleri kullanılmalı
+
+## Dosya Organizasyonu
+- MediaForge/ klasörü altında Models/, Views/, Helpers/ ve Resources/ yapısı kullanılmaktadır
+- Models/ klasörü veri modellerini içerir
+- Views/ klasörü UI bileşenlerini içerir
+- Helpers/ klasörü yardımcı sınıfları ve yöneticileri içerir
+- Resources/ klasörü uygulama kaynaklarını içerir
+
+## Güncel Proje Durumu
+- Temel altyapı ve mimari yapı kurulmuş durumdadır
+- Temel disk algılama ve dosya transferi özellikleri çalışır durumdadır
+- UI modernizasyonu, disk yönetimi iyileştirmeleri ve dosya transfer optimizasyonları öncelikli çalışma alanlarıdır
+- Metadata yönetimi, gelişmiş filtreleme ve bulut entegrasyonu henüz başlanmamış özelliklerdir
+
+## Optimizasyon Gereksinimleri
+- Büyük dosya transferleri için bellek kullanımını en aza indirmek
+- Çoklu thread yapısı ile paralel işlem kapasitesini maksimize etmek
+- UI tepki süresini transfer işlemleri sırasında bile yüksek tutmak
+
+## MacOS Sequoia Tasarım Uyumluluğu
+- Glassmorphism efektleri ve bulanıklaştırılmış UI arka planları kullanılmalı
+- Malzeme (material) efektleri modern ve hafif görünüm için kullanılmalı
+- Dinamik renk şeması ve tema desteği sağlanmalı
+- Animasyonlar ve geçişler akıcı ve doğal olmalı
+
+## Dağıtım Stratejisi
+- DMG ve PKG formatlarında dağıtım yapılacak
+- App Store üzerinden dağıtım planlanmıyor
+- Kurulum için gerekli izinlerin yönetimi dikkate alınmalı
+
+## Notlar
+- Kullanıcı kodlama veya teknik bilgiye sahip değil, anlatımlarda teknik jargondan kaçınılmalı
+- GitHub üzerinde versiyon kontrolü yapılıyor, her değişiklik commit ve push edilmeli
+- MacOS 15.5 Sequoia işletim sistemi hedefleniyor
+- Memory-Bank kuralları ve dosyaları korunmalı, güncellenmeli 
