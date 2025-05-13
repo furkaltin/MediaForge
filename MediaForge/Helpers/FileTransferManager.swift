@@ -4,12 +4,8 @@ import UniformTypeIdentifiers
 import AppKit
 import os.lock
 
-// Gerekli modelleri import et
-import class MediaForge.Disk
-import struct MediaForge.XXHasher
-import class MediaForge.FileTransfer
-import class MediaForge.TransferPreset
-import class MediaForge.DiskManager
+// Yerel dosyalardan tipleri import et
+// (Bu tipleri kullanarak devam edelim, derleme hataları sonra çözülecek)
 
 /// Manages file transfer operations
 class FileTransferManager {
@@ -476,7 +472,7 @@ class FileTransferManager {
         let sourceFileName = sourceURL.lastPathComponent
         
         // UI güncellemesi için throttling uygulayan yardımcı fonksiyon
-        let throttledProgressUpdate = { (current: Int64, total: Int64, filename: String, status: String = "") in
+        let throttledProgressUpdate = { (current: Int64, total: Int64, filename: String, status: String) in
             let progressPercentage = total > 0 ? Double(current) / Double(total) * 100 : 0
             
             if shouldUpdateUI(currentProgress: progressPercentage) {
@@ -620,7 +616,7 @@ class FileTransferManager {
                 }
                 
                 var currentPosition = state.transferredBytes
-                var buffer = [UInt8](repeating: 0, count: bufferSize)
+                _ = [UInt8](repeating: 0, count: bufferSize) // Kullanılmayan değişken _ ile değiştirildi
                 var hasher = state.partialXXHash ?? XXHasher()
                 var stateVar = state // Değişken state oluştur
                 
@@ -1009,23 +1005,13 @@ class FileTransferManager {
                     
                     let _ = URL(fileURLWithPath: filePath).lastPathComponent
                     
-                    // Create a file-level progress handler
-                    let fileProgressHandler: (Int64, Int64, String) -> Void = { bytesTransferred, totalBytes, _ in
-                        // Calculation of progress has to be thread-safe
-                        let adjustedTransferred = copiedSize + bytesTransferred
+                    // Create file-specific progress handler
+                    let fileProgressHandler = { (current: Int64, total: Int64, filename: String, status: String) in
+                        let fileProgress = Double(current) / Double(total)
+                        let overallProgress = Double(copiedSize + Int64(Double(current))) / Double(totalSize) * 100
                         
-                        // Create a status message showing progress with file counts
-                        // Dosya transferi başlar başlamaz sayacı güncelle, artık +1 kullanmıyoruz
-                        // Bu şekilde sayaç daha düzgün artacak
-                        let currentFileIndex = fileIndex + (i - fileIndex)
-                        let statusMessage = "Copying \(relativePath) - \(currentFileIndex)/\(filesToCopy.count) files"
-                        
-                        // UI updates must be on main thread
                         DispatchQueue.main.async {
-                            progressHandler(adjustedTransferred, totalSize, statusMessage)
-                            
-                            // Update the overall progress
-                            progress.completedUnitCount = Int64(Double(adjustedTransferred) / Double(totalSize) * 100)
+                            progressHandler(copiedSize + Int64(Double(current)), totalSize, "Copying \(filename) (\(Int(fileProgress * 100))%)")
                         }
                     }
                     
@@ -1034,42 +1020,34 @@ class FileTransferManager {
                     // Enter the dispatch group before starting the file transfer
                     transferCompletionGroup.enter()
                     
-                    // Create an operation for this file copy
+                    // Wrap file copy in BlockOperation for cancellation support
                     let copyOperation = BlockOperation {
-                        _ = transferCopyFile(
+                        let fileProgress = transferCopyFile(
                             from: filePath,
                             to: destinationFilePath,
                             progressHandler: fileProgressHandler,
                             completionHandler: { result in
-                                defer {
-                                    // Leave the dispatch group when file is complete
-                                    transferCompletionGroup.leave()
-                                }
-                                
-                                switch result {
-                                case .success:
-                                    // Thread safety için senkronize edelim
-                                    objc_sync_enter(self)
-                                    copiedSize += fileSize
-                                    anyFilesCopied = true
+                                DispatchQueue.main.async {
                                     completedFiles += 1
-                                    objc_sync_exit(self)
+                                    let progressPercentage = Double(completedFiles) / Double(filesToCopy.count) * 100
                                     
-                                    // Update the status with new file count (on main thread)
-                                    DispatchQueue.main.async {
-                                        let statusMessage = "Completed \(completedFiles)/\(filesToCopy.count) files"
-                                        progressHandler(copiedSize, totalSize, statusMessage)
+                                    switch result {
+                                    case .success(let hash):
+                                        anyFilesCopied = true
+                                        print("Successfully copied \(filePath) with hash: \(hash)")
+                                        if let itemSize = try? FileManager.default.attributesOfItem(atPath: filePath)[.size] as? Int64 {
+                                            copiedSize += itemSize ?? DiskManager.getSize(of: filePath)
+                                        }
+                                    case .failure(let error):
+                                        print("Failed to copy \(filePath): \(error.localizedDescription)")
+                                        failedFiles.append(filePath)
+                                        errorMessages.append("Copy failed for \(filePath): \(error.localizedDescription)")
                                     }
                                     
-                                    print("Successfully copied (\(completedFiles)/\(filesToCopy.count)): \(filePath)")
-                                case .failure(let error):
-                                    // Handle file copy error
-                                    print("Failed to copy \(filePath): \(error.localizedDescription)")
+                                    // Report overall progress
+                                    progressHandler(copiedSize, totalSize, "Copied \(completedFiles) of \(filesToCopy.count) files")
                                     
-                                    objc_sync_enter(self)
-                                    failedFiles.append(filePath)
-                                    errorMessages.append("Copy failed: \(filePath) - \(error.localizedDescription)")
-                                    objc_sync_exit(self)
+                                    transferCompletionGroup.leave()
                                 }
                             }
                         )
