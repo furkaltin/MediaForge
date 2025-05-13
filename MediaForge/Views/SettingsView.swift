@@ -17,6 +17,7 @@ struct SettingsView: View {
         case advanced = "Advanced"
         case verification = "Verification"
         case appearance = "Appearance"
+        case language = "Language"
         
         var id: String { self.rawValue }
         
@@ -26,6 +27,7 @@ struct SettingsView: View {
             case .advanced: return "gearshape.2"
             case .verification: return "checkmark.shield"
             case .appearance: return "paintbrush"
+            case .language: return "globe"
             }
         }
         
@@ -35,6 +37,17 @@ struct SettingsView: View {
             case .advanced: return .purple
             case .verification: return .green
             case .appearance: return .orange
+            case .language: return .teal
+            }
+        }
+        
+        var localizedName: String {
+            switch self {
+            case .general: return "general".localized
+            case .advanced: return "advanced".localized
+            case .verification: return "verification".localized
+            case .appearance: return "appearance".localized
+            case .language: return "language".localized
             }
         }
     }
@@ -44,7 +57,7 @@ struct SettingsView: View {
             // Header
             ZStack {
                 HStack {
-                    Text("Settings")
+                    Text("settings".localized)
                         .font(.system(size: 28, weight: .bold))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -52,7 +65,7 @@ struct SettingsView: View {
                     Button(action: {
                         showResetAlert = true
                     }) {
-                        Label("Reset All", systemImage: "arrow.counterclockwise.circle")
+                        Label("reset_all".localized, systemImage: "arrow.counterclockwise.circle")
                             .font(.system(size: 14, weight: .medium))
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
@@ -109,6 +122,8 @@ struct SettingsView: View {
                             verificationSettings
                         case .appearance:
                             appearanceSettings
+                        case .language:
+                            languageSettings
                         }
                     }
                     .padding(24)
@@ -119,12 +134,12 @@ struct SettingsView: View {
         }
         .alert(isPresented: $showResetAlert) {
             Alert(
-                title: Text("Reset Settings"),
-                message: Text("Are you sure you want to reset all settings to defaults? This cannot be undone."),
-                primaryButton: .destructive(Text("Reset")) {
+                title: Text("reset_settings".localized),
+                message: Text("reset_confirm_message".localized),
+                primaryButton: .destructive(Text("reset".localized)) {
                     resetSettings()
                 },
-                secondaryButton: .cancel()
+                secondaryButton: .cancel(Text("cancel".localized))
             )
         }
     }
@@ -138,7 +153,7 @@ struct SettingsView: View {
                 Image(systemName: section.icon)
                     .frame(width: 24)
                 
-                Text(section.rawValue)
+                Text(section.localizedName)
                     .fontWeight(selectedSection == section ? .semibold : .regular)
                 
                 Spacer()
@@ -314,6 +329,59 @@ struct SettingsView: View {
                     Text("List").tag("list")
                 }
                 .pickerStyle(SegmentedPickerStyle())
+            }
+        }
+    }
+    
+    // Language settings
+    private var languageSettings: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            sectionHeader("language_settings".localized)
+            
+            settingsCard {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("app_language".localized)
+                        .font(.headline)
+                    
+                    VStack(spacing: 8) {
+                        ForEach(AppLanguage.allCases) { language in
+                            Button(action: {
+                                viewModel.appLanguage = language.rawValue
+                            }) {
+                                HStack {
+                                    Text(language.flagEmoji)
+                                        .font(.title2)
+                                        .frame(width: 36)
+                                    
+                                    Text(language.localizedDisplayName)
+                                        .foregroundColor(.primary)
+                                    
+                                    Spacer()
+                                    
+                                    if viewModel.appLanguage == language.rawValue {
+                                        Image(systemName: "checkmark")
+                                            .foregroundColor(.blue)
+                                    }
+                                }
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                                .contentShape(Rectangle())
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(viewModel.appLanguage == language.rawValue ? 
+                                              Color.accentColor.opacity(0.1) : Color.clear)
+                                )
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                    }
+                    
+                    Divider()
+                    
+                    Text("language_restart_required".localized)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
         }
     }

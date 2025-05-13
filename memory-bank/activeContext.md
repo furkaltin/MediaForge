@@ -44,6 +44,11 @@ MediaForge projesi, temel yapısı kurulmuş ancak geliştirmeye ihtiyaç duyan 
   - Daha fazla checksum algoritması desteği
   - Transfer kesintilerinden kurtarma mekanizması
   - İlerleme izleme ve raporlama iyileştirmeleri
+- **Gerçekleştirilenler:**
+  - Dosya boyutuna göre uyarlanabilir buffer boyutu stratejisi eklendi (256KB - 8MB)
+  - UI güncellemeleri için zaman ve ilerleme yüzdesi bazlı throttling mekanizması eklendi
+  - XXHash algoritması için bellek optimizasyonu yapıldı ve büyük dosyalar için stream tabanlı işleme geliştirildi
+  - İlerleme bildirimleri için durum mesajları eklendi
 
 ## Son Alınan Kararlar
 

@@ -113,6 +113,18 @@ class MediaHashList {
     ///   - basePath: Base path for the files (if they moved)
     /// - Returns: Verification result with details
     static func verifyMHL(mhlPath: String, basePath: String? = nil) -> VerificationResult {
+        // Validate input path
+        guard FileManager.default.fileExists(atPath: mhlPath) else {
+            print("Hata: MHL dosyası bulunamadı: \(mhlPath)")
+            return VerificationResult(
+                success: false,
+                message: "MHL dosyası bulunamadı",
+                verifiedFiles: [],
+                missingFiles: [],
+                invalidFiles: []
+            )
+        }
+        
         // Load and parse MHL
         guard let xmlData = try? Data(contentsOf: URL(fileURLWithPath: mhlPath)),
               let xmlDoc = try? XMLDocument(data: xmlData, options: []) else {

@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleDevelopmentRegion</key>
-    <string>$(DEVELOPMENT_LANGUAGE)</string>
+    <string>en</string>
     <key>CFBundleExecutable</key>
     <string>$(EXECUTABLE_NAME)</string>
     <key>CFBundleIdentifier</key>
@@ -39,5 +39,11 @@
     <string>MediaForge çıkarılabilir diskler ve depolama aygıtlarına erişim gerektirir.</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>MediaForge fotoğraf kitaplığındaki medya dosyalarına erişim gerektirir.</string>
+    <!-- Localization settings -->
+    <key>CFBundleLocalizations</key>
+    <array>
+        <string>en</string>
+        <string>tr</string>
+    </array>
 </dict>
 </plist> 

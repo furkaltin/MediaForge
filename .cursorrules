@@ -35,6 +35,13 @@
 - Çoklu thread yapısı ile paralel işlem kapasitesini maksimize etmek
 - UI tepki süresini transfer işlemleri sırasında bile yüksek tutmak
 
+## Performans Optimizasyon Stratejileri
+- Dosya boyutuna göre uyarlanabilir buffer boyutu kullanımı (küçük dosyalar için 256KB, büyük dosyalar için 8MB)
+- UI güncellemeleri için hem zaman hem de ilerleme yüzdesi bazlı throttling mekanizması
+- Bellek yönetimi için autoreleasepool kullanımı (özellikle büyük dosya işlemleri sırasında)
+- xxHash algoritması kullanımı hızlı checksum hesaplaması için (MD5 ve SHA1'den daha hızlı)
+- Stream tabanlı hash hesaplama metodu büyük dosyalar için optimize edilmiş
+
 ## MacOS Sequoia Tasarım Uyumluluğu
 - Glassmorphism efektleri ve bulanıklaştırılmış UI arka planları kullanılmalı
 - Malzeme (material) efektleri modern ve hafif görünüm için kullanılmalı

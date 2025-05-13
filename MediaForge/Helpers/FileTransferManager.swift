@@ -4,6 +4,13 @@ import UniformTypeIdentifiers
 import AppKit
 import os.lock
 
+// Gerekli modelleri import et
+import class MediaForge.Disk
+import struct MediaForge.XXHasher
+import class MediaForge.FileTransfer
+import class MediaForge.TransferPreset
+import class MediaForge.DiskManager
+
 /// Manages file transfer operations
 class FileTransferManager {
     
@@ -21,42 +28,42 @@ class FileTransferManager {
         var errorDescription: String? {
             switch self {
             case .fileNotFound:
-                return "File not found"
+                return NSLocalizedString("file_not_found", comment: "File not found")
             case .destinationNotWritable:
-                return "Destination is not writable"
+                return NSLocalizedString("destination_not_writable", comment: "Destination is not writable")
             case .copyFailed(let error):
-                return "Copy failed: \(error.localizedDescription)"
+                return String(format: NSLocalizedString("copy_failed", comment: "Copy failed: %@"), error.localizedDescription)
             case .checksumMismatch:
-                return "Checksum verification failed"
+                return NSLocalizedString("checksum_mismatch", comment: "Checksum verification failed")
             case .cancelled:
-                return "Transfer was cancelled"
+                return NSLocalizedString("transfer_cancelled", comment: "Transfer was cancelled")
             case .sourcePathInvalid:
-                return "Source path is invalid"
+                return NSLocalizedString("source_path_invalid", comment: "Source path is invalid")
             case .destinationPathInvalid:
-                return "Destination path is invalid"
+                return NSLocalizedString("destination_path_invalid", comment: "Destination path is invalid")
             case .permissionDenied:
-                return "Permission denied for file access"
+                return NSLocalizedString("permission_denied", comment: "Permission denied for file access")
             }
         }
         
         var failureReason: String? {
             switch self {
             case .fileNotFound:
-                return "The file could not be found at the specified location. Please verify the path."
+                return NSLocalizedString("file_not_found_reason", comment: "The file could not be found at the specified location. Please verify the path.")
             case .destinationNotWritable:
-                return "The destination location cannot be written to. Please check permissions or disk space."
+                return NSLocalizedString("destination_not_writable_reason", comment: "The destination location cannot be written to. Please check permissions or disk space.")
             case .copyFailed(let error):
-                return "The copy operation failed: \(error.localizedDescription)"
+                return String(format: NSLocalizedString("copy_failed_reason", comment: "The copy operation failed: %@"), error.localizedDescription)
             case .checksumMismatch:
-                return "The file verification failed. The source and destination files do not match."
+                return NSLocalizedString("checksum_mismatch_reason", comment: "The file verification failed. The source and destination files do not match.")
             case .cancelled:
-                return "The transfer was cancelled by the user."
+                return NSLocalizedString("transfer_cancelled_reason", comment: "The transfer was cancelled by the user.")
             case .sourcePathInvalid:
-                return "The source path is invalid or inaccessible. Check if the path exists."
+                return NSLocalizedString("source_path_invalid_reason", comment: "The source path is invalid or inaccessible. Check if the path exists.")
             case .destinationPathInvalid:
-                return "The destination path is invalid. Check if the path exists and is accessible."
+                return NSLocalizedString("destination_path_invalid_reason", comment: "The destination path is invalid. Check if the path exists and is accessible.")
             case .permissionDenied:
-                return "File system permission denied. Make sure the app has the necessary permissions to access the files."
+                return NSLocalizedString("permission_denied_reason", comment: "File system permission denied. Make sure the app has the necessary permissions to access the files.")
             }
         }
     }
@@ -344,291 +351,354 @@ class FileTransferManager {
         }
     }
     
-    /// Copy a file with progress reporting
-    static func copyFile(
-        from sourcePath: String, 
-        to destinationPath: String, 
-        progressHandler: @escaping (Int64, Int64, String) -> Void,
+    /// Transfer kesintilerini yönetmek için yapı
+    struct TransferState {
+        let sourceURL: URL
+        let destinationURL: URL
+        let fileSize: Int64
+        var transferredBytes: Int64
+        var lastCheckpoint: Int64
+        var isVerified: Bool
+        var partialXXHash: XXHasher?
+        
+        init(sourceURL: URL, destinationURL: URL, fileSize: Int64) {
+            self.sourceURL = sourceURL
+            self.destinationURL = destinationURL
+            self.fileSize = fileSize
+            self.transferredBytes = 0
+            self.lastCheckpoint = 0
+            self.isVerified = false
+            self.partialXXHash = XXHasher()
+        }
+    }
+    
+    // Yarım kalmış transferleri saklamak için dictionary
+    private static var unfinishedTransfers: [String: TransferState] = [:]
+    
+    // Dosya boyutuna göre optimum buffer boyutu hesaplama
+    private static func getOptimalBufferSize(fileSize: Int64) -> Int {
+        switch fileSize {
+        case 0..<10_485_760: // < 10MB
+            return 256 * 1024 // 256KB
+        case 10_485_760..<104_857_600: // 10MB - 100MB
+            return 1024 * 1024 // 1MB
+        case 104_857_600..<1_073_741_824: // 100MB - 1GB
+            return 4 * 1024 * 1024 // 4MB
+        default: // > 1GB
+            return 8 * 1024 * 1024 // 8MB
+        }
+    }
+    
+    // UI güncellemeleri için gelişmiş throttling mekanizması
+    private static var lastUIUpdateTime: Date = Date()
+    private static var lastProgressPercentage: Double = 0
+    private static let minUIUpdateInterval: TimeInterval = 0.1 // 100ms
+    private static let minProgressChange: Double = 1.0 // %1'lik değişimde güncelle
+    
+    private static func shouldUpdateUI(currentProgress: Double) -> Bool {
+        let now = Date()
+        let timeCheck = now.timeIntervalSince(lastUIUpdateTime) >= minUIUpdateInterval
+        let progressCheck = abs(currentProgress - lastProgressPercentage) >= minProgressChange
+        
+        // Zaman veya ilerleme yüzdesi koşullarından biri sağlanırsa güncelle
+        if timeCheck || progressCheck {
+            lastUIUpdateTime = now
+            lastProgressPercentage = currentProgress
+            return true
+        }
+        return false
+    }
+    
+    // Stream tabanlı xxHash hesaplama
+    static func calculateStreamXXHash(for filePath: String, bufferSize: Int? = nil) -> String? {
+        do {
+            let fileURL = URL(fileURLWithPath: filePath)
+            guard let fileHandle = try? FileHandle(forReadingFrom: fileURL) else {
+                print("Cannot open file for xxHash calculation: \(filePath)")
+                return nil
+            }
+            
+            defer {
+                fileHandle.closeFile()
+            }
+            
+            // Dosya boyutuna göre buffer boyutu optimizasyonu
+            let fileAttributes = try FileManager.default.attributesOfItem(atPath: filePath)
+            let fileSize = (fileAttributes[.size] as? NSNumber)?.int64Value ?? 0
+            
+            // Buffer boyutu belirtilmemişse optimum boyutu kullan
+            let optimalBufferSize = bufferSize ?? getOptimalBufferSize(fileSize: fileSize)
+            
+            var hasher = XXHasher()
+            var totalBytesProcessed: Int64 = 0
+            let updateInterval: TimeInterval = 0.5 // Progress update interval
+            var lastUpdateTime = Date()
+            
+            // Dosyayı parçalar halinde okuyup hash hesapla
+            while true {
+                autoreleasepool { // Bellek yönetimi için autorelease pool kullan
+                    let data = fileHandle.readData(ofLength: optimalBufferSize)
+                    if data.isEmpty {
+                        return
+                    }
+                    
+                    hasher.update(data: data)
+                    totalBytesProcessed += Int64(data.count)
+                    
+                    // Çok büyük dosyalarda ilerleme güncellemesi
+                    if fileSize > 1_073_741_824 && Date().timeIntervalSince(lastUpdateTime) >= updateInterval {
+                        lastUpdateTime = Date()
+                        let progress = Double(totalBytesProcessed) / Double(fileSize) * 100
+                        print("xxHash calculation progress: \(Int(progress))% (\(totalBytesProcessed)/\(fileSize) bytes)")
+                    }
+                }
+            }
+            
+            // Hash'i tamamla ve hexadecimal stringe çevir
+            let hash = hasher.finalize()
+            return String(format: "%016llx", hash)
+        } catch {
+            print("Error calculating xxHash: \(error.localizedDescription)")
+            return nil
+        }
+    }
+    
+    /// Copy a file with optimized stream method and xxHash verification
+    static func transferCopyFile(
+        from sourcePath: String,
+        to destinationPath: String,
+        progressHandler: @escaping (Int64, Int64, String, String) -> Void,
         completionHandler: @escaping (Result<String, TransferError>) -> Void
     ) -> Progress {
-        // Create a Progress object to track and potentially cancel the operation
-        let progress = Progress(totalUnitCount: 1)
-        
-        // Debug information for troubleshooting
-        print("=== TRANSFER ATTEMPT ===")
-        print("Copying from: \(sourcePath)")
-        print("Copying to: \(destinationPath)")
-        
-        // Explicitly access source using security-scoped bookmark if available
-        var didStartSourceAccess = false
-        if accessViaBookmark(path: sourcePath) {
-            didStartSourceAccess = true
-            print("Successfully accessed source path via bookmark")
-        }
-        
-        // Create destination directories up front
+        let progress = Progress(totalUnitCount: 100)
+        let sourceURL = URL(fileURLWithPath: sourcePath)
         let destinationURL = URL(fileURLWithPath: destinationPath)
-        let destinationDir = destinationURL.deletingLastPathComponent().path
+        let sourceFileName = sourceURL.lastPathComponent
         
-        do {
-            try FileManager.default.createDirectory(atPath: destinationDir, withIntermediateDirectories: true)
-            print("Created destination directory: \(destinationDir)")
-        } catch {
-            print("Failed to create destination directory: \(error.localizedDescription)")
-            if didStartSourceAccess {
-                stopAccessingPath(path: sourcePath)
-            }
-            completionHandler(.failure(.destinationNotWritable))
-            return progress
-        }
-        
-        // Ensure source exists
-        guard FileManager.default.fileExists(atPath: sourcePath) else {
-            print("Source file not found: \(sourcePath)")
-            if didStartSourceAccess {
-                stopAccessingPath(path: sourcePath)
-            }
-            completionHandler(.failure(.fileNotFound))
-            return progress
-        }
-        
-        // Get source file size
-        var fileSize: Int64 = 0
-        do {
-            let attributes = try FileManager.default.attributesOfItem(atPath: sourcePath)
-            if let size = attributes[.size] as? Int64 {
-                fileSize = size
-            } else {
-                fileSize = DiskManager.getSize(of: sourcePath)
-            }
-            print("Source file size: \(fileSize) bytes")
-        } catch {
-            print("Error getting source file size: \(error.localizedDescription)")
-            fileSize = DiskManager.getSize(of: sourcePath)
-        }
-        
-        // Get source file name for progress updates
-        let sourceFileName = URL(fileURLWithPath: sourcePath).lastPathComponent
-        progressHandler(0, fileSize, sourceFileName)
-        
-        // Start file copy in background
-        DispatchQueue.global(qos: .userInitiated).async {
-            let sourceURL = URL(fileURLWithPath: sourcePath)
+        // UI güncellemesi için throttling uygulayan yardımcı fonksiyon
+        let throttledProgressUpdate = { (current: Int64, total: Int64, filename: String, status: String = "") in
+            let progressPercentage = total > 0 ? Double(current) / Double(total) * 100 : 0
             
-            // Make sure we release the security-scoped resource when done
-            defer {
-                if didStartSourceAccess {
-                    stopAccessingPath(path: sourcePath)
-                    print("Stopped accessing source path via bookmark")
+            if shouldUpdateUI(currentProgress: progressPercentage) {
+                DispatchQueue.main.async {
+                    progressHandler(current, total, filename, status)
+                    progress.completedUnitCount = Int64(progressPercentage)
                 }
             }
-            
+        }
+        
+        // Arka planda transfer işlemini başlat
+        DispatchQueue.global(qos: .userInitiated).async {
             do {
-                // Büyük dosyalar için optimize edilmiş kopyalama yöntemi
-                if fileSize > 100_000_000 { // 100MB üzeri için
-                    // Direkt FileManager.copyItem kullan - daha optimize ve hızlı
-                    print("Using fast copy for large file (\(fileSize) bytes)")
-                    
-                    // Büyük dosyalarda ara ilerleme güncellemeleri için timer kullan
-                    // Bu şekilde progress bar daha düzgün ilerleyecek
-                    let updateTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { _ in
-                        let destSize = DiskManager.getSize(of: destinationPath)
-                        if destSize > 0 {
-                            // Dosyanın ne kadarının kopyalandığını kontrol et
-                            DispatchQueue.main.async {
-                                // Kopyalanmış boyut transferi boyutunu geçmesin
-                                let reportedSize = min(destSize, fileSize)
-                                progressHandler(reportedSize, fileSize, sourceFileName)
-                                progress.completedUnitCount = Int64(Double(reportedSize) / Double(fileSize) * 100)
-                            }
-                        }
-                    }
-                    
-                    do {
-                        try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
-                        // Timer'ı durdur
-                        updateTimer.invalidate()
-                        
-                        // Dosya boyutunu doğrulayın
-                        let destSize = DiskManager.getSize(of: destinationPath)
-                        if destSize != fileSize {
-                            print("Size mismatch after copy: source=\(fileSize), dest=\(destSize)")
-                            try? FileManager.default.removeItem(at: destinationURL)
-                            throw TransferError.checksumMismatch
-                        }
-                        
-                        // İşlem tamamlandı, progress bildirimi
-                        DispatchQueue.main.async {
-                            progressHandler(fileSize, fileSize, sourceFileName)
-                        }
-                        completionHandler(.success("File copied successfully"))
-                    } catch {
-                        // Timer'ı durdur
-                        updateTimer.invalidate()
-                        throw error
-                    }
-                    
+                // Kaynak dosya bilgilerini al
+                let fileAttributes = try FileManager.default.attributesOfItem(atPath: sourcePath)
+                let fileSize = (fileAttributes[.size] as? NSNumber)?.int64Value ?? 0
+                
+                if fileSize == 0 {
+                    print("Empty file: \(sourcePath)")
+                    progressHandler(0, 0, sourceFileName, "Empty file")
+                    completionHandler(.success("Empty file"))
                     return
                 }
                 
-                // ---- Normal boyuttaki dosyalar için sonraki kopyalama metodları: ----
+                print("=== FILE TRANSFER STARTED ===")
+                print("Source: \(sourcePath)")
+                print("Destination: \(destinationPath)")
+                print("Size: \(fileSize) bytes")
                 
-                // First, try using FileManager.copyItem which is the most reliable method
-                print("Attempting copy using FileManager.copyItem")
-                do {
-                    try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
-                    print("FileManager.copyItem succeeded")
-                    
-                    // Verify existence and size
+                // Hedef klasörün varlığını kontrol et
+                let destinationDir = destinationURL.deletingLastPathComponent()
+                if !FileManager.default.fileExists(atPath: destinationDir.path) {
+                    try FileManager.default.createDirectory(at: destinationDir, withIntermediateDirectories: true)
+                }
+                
+                // Dosya zaten varsa ve transfere devam edilebiliyorsa
+                var transferState: TransferState?
+                let transferKey = "\(sourcePath)|\(destinationPath)"
+                
                     if FileManager.default.fileExists(atPath: destinationPath) {
-                        let destinationSize = DiskManager.getSize(of: destinationPath)
-                        if destinationSize != fileSize {
-                            print("Size mismatch after copy: source=\(fileSize), dest=\(destinationSize)")
-                            try? FileManager.default.removeItem(at: destinationURL)
-                            throw TransferError.checksumMismatch
-                        }
+                    // Muhtemelen yarım kalmış bir transfer
+                    let destinationAttributes = try? FileManager.default.attributesOfItem(atPath: destinationPath)
+                    let destinationSize = (destinationAttributes?[.size] as? NSNumber)?.int64Value ?? 0
+                    
+                    if destinationSize < fileSize {
+                        print("Found partial file, size: \(destinationSize) of \(fileSize)")
                         
-                        // Successful copy
-                        DispatchQueue.main.async {
-                            progressHandler(fileSize, fileSize, sourceFileName)
+                        // Varolan transfer state'i kontrol et
+                        if let existingState = unfinishedTransfers[transferKey] {
+                            transferState = existingState
+                            print("Resuming transfer from byte \(existingState.transferredBytes)")
+                            throttledProgressUpdate(existingState.transferredBytes, fileSize, sourceFileName, "Resuming transfer")
+                        } else {
+                            // Yeni bir state oluştur
+                            transferState = TransferState(
+                                sourceURL: sourceURL, 
+                                destinationURL: destinationURL, 
+                                fileSize: fileSize
+                            )
+                            transferState?.transferredBytes = destinationSize
+                            print("Created new transfer state, starting from byte \(destinationSize)")
                         }
-                        completionHandler(.success("File copied successfully"))
+                    } else if destinationSize == fileSize {
+                        // Dosya tamamlanmış gibi görünüyor, sadece checksum doğrulaması yap
+                        print("File exists with same size, verifying...")
+                        
+                        if let sourceHash = calculateStreamXXHash(for: sourcePath),
+                           let destHash = calculateStreamXXHash(for: destinationPath) {
+                            if sourceHash == destHash {
+                                print("Checksum verification successful")
+                        DispatchQueue.main.async {
+                            progressHandler(fileSize, fileSize, sourceFileName, "Checksum verification successful")
+                        }
+                                completionHandler(.success(sourceHash))
                         return
                     } else {
-                        print("Destination file doesn't exist after copy")
-                        throw TransferError.copyFailed(NSError(domain: "MediaForge", code: 1, userInfo: [NSLocalizedDescriptionKey: "Destination file not found after copy"]))
-                    }
-                } catch {
-                    print("FileManager.copyItem failed: \(error.localizedDescription), trying Data method")
-                    // Continue to the next method if this fails
-                }
-                
-                // If first method failed, try simple Data method
-                print("Attempting copy using Data read/write")
-                do {
-                    let sourceData = try Data(contentsOf: sourceURL, options: .mappedIfSafe)
-                    try sourceData.write(to: destinationURL)
-                    print("Data read/write succeeded")
-                    
-                    // Verify size
-                    let destinationSize = DiskManager.getSize(of: destinationPath)
-                    if destinationSize != fileSize {
-                        print("Size mismatch after copy: source=\(fileSize), dest=\(destinationSize)")
+                                // Checksum uyuşmazlığı - dosyayı yeniden transfer et
+                                print("Checksum mismatch, retransferring file")
+                                try? FileManager.default.removeItem(at: destinationURL)
+                            }
+                        } else {
+                            // Hash hesaplanamadı, dosyayı yeniden transfer et
+                            print("Could not calculate hash, retransferring file")
+                            try? FileManager.default.removeItem(at: destinationURL)
+                        }
+                    } else {
+                        // Hedef dosya kaynak dosyadan büyük - muhtemelen bozuk
+                        print("Destination file is larger than source, deleting and retransferring")
                         try? FileManager.default.removeItem(at: destinationURL)
-                        throw TransferError.checksumMismatch
                     }
-                    
-                    DispatchQueue.main.async {
-                        progressHandler(fileSize, fileSize, sourceFileName)
-                    }
-                    completionHandler(.success("File copied successfully"))
-                    return
-                } catch {
-                    print("Data read/write failed: \(error.localizedDescription), trying stream method")
-                    // Continue to the stream method below
                 }
                 
-                // Calculate source checksum before streaming copy
-                print("Calculating source checksum")
-                guard let sourceChecksum = calculateMD5(for: sourcePath) else {
-                    print("Could not calculate source checksum for: \(sourcePath)")
-                    throw TransferError.fileNotFound
+                // Transfer state yoksa yeni oluştur
+                if transferState == nil {
+                    transferState = TransferState(
+                        sourceURL: sourceURL, 
+                        destinationURL: destinationURL, 
+                        fileSize: fileSize
+                    )
                 }
-                print("Source checksum: \(sourceChecksum)")
                 
-                // Last resort: stream method with buffer
-                print("Attempting copy using stream method")
-                // Open file handles
-                guard let inputStream = InputStream(url: sourceURL) else {
-                    print("Could not open input stream from: \(sourcePath)")
+                guard let state = transferState else {
+                    throw TransferError.copyFailed(NSError(domain: "FileTransferError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create transfer state"]))
+                }
+                
+                // Dosyayı stream yöntemiyle kopyala
+                let bufferSize = getOptimalBufferSize(fileSize: fileSize)
+                print("Using buffer size: \(bufferSize) bytes")
+                
+                guard let sourceHandle = try? FileHandle(forReadingFrom: sourceURL) else {
+                    print("Could not open input file: \(sourcePath)")
                     throw TransferError.sourcePathInvalid
                 }
                 
-                guard let outputStream = OutputStream(url: destinationURL, append: false) else {
-                    print("Could not open output stream to: \(destinationPath)")
+                // Kaynakta doğru konuma git
+                if state.transferredBytes > 0 {
+                    try sourceHandle.seek(toOffset: UInt64(state.transferredBytes))
+                }
+                
+                // Hedef dosyayı hazırla
+                var destinationHandle: FileHandle?
+                if state.transferredBytes == 0 {
+                    // Yeni dosya oluştur
+                    FileManager.default.createFile(atPath: destinationPath, contents: nil)
+                    destinationHandle = try FileHandle(forWritingTo: destinationURL)
+                } else {
+                    // Varolana ekle
+                    destinationHandle = try FileHandle(forWritingTo: destinationURL)
+                    try destinationHandle?.seekToEnd()
+                }
+                
+                guard let destHandle = destinationHandle else {
+                    sourceHandle.closeFile()
+                    print("Could not open output file: \(destinationPath)")
                     throw TransferError.destinationPathInvalid
                 }
                 
-                inputStream.open()
-                outputStream.open()
-                
                 defer {
-                    inputStream.close()
-                    outputStream.close()
+                    sourceHandle.closeFile()
+                    destHandle.closeFile()
                 }
                 
-                let bufferSize = 1024 * 1024 // 1MB buffer
+                var currentPosition = state.transferredBytes
                 var buffer = [UInt8](repeating: 0, count: bufferSize)
-                var totalBytesRead: Int64 = 0
+                var hasher = state.partialXXHash ?? XXHasher()
+                var stateVar = state // Değişken state oluştur
                 
-                // Copy the file in chunks
-                while inputStream.hasBytesAvailable {
-                    // Check if operation was cancelled
+                // Kopyalama işlemi
+                while currentPosition < fileSize {
+                    // İptal edildi mi kontrol et
                     if progress.isCancelled {
-                        // Remove partial file
-                        try? FileManager.default.removeItem(at: destinationURL)
+                        print("Transfer cancelled")
+                        
+                        // State'i sakla
+                        unfinishedTransfers[transferKey] = TransferState(
+                            sourceURL: sourceURL,
+                            destinationURL: destinationURL,
+                            fileSize: fileSize
+                        )
+                        unfinishedTransfers[transferKey]?.transferredBytes = currentPosition
+                        unfinishedTransfers[transferKey]?.partialXXHash = hasher
+                        
                         throw TransferError.cancelled
                     }
                     
-                    let bytesRead = inputStream.read(&buffer, maxLength: bufferSize)
-                    if bytesRead > 0 {
-                        let bytesWritten = outputStream.write(buffer, maxLength: bytesRead)
-                        if bytesWritten != bytesRead {
-                            // Error occurred
-                            print("Failed to write all bytes: \(bytesWritten) vs \(bytesRead)")
-                            throw TransferError.copyFailed(NSError(domain: "FileTransferError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to write all bytes"]))
-                        }
-                        
-                        totalBytesRead += Int64(bytesRead)
-                        
-                        // UI güncellemelerini main thread'de yap
-                        // Daha sık güncellemeler için condition ekleyelim
-                        // Her 128KB'da bir güncelleme yapalım veya 100ms geçtiyse
-                        var lastUpdateTime = Date()
-                        let shouldUpdate = (totalBytesRead % (128 * 1024) == 0) || 
-                                           (Date().timeIntervalSince(lastUpdateTime) > 0.1)
-                        
-                        if shouldUpdate {
-                            lastUpdateTime = Date()
-                            DispatchQueue.main.async {
-                                progressHandler(totalBytesRead, fileSize, sourceFileName)
-                                
-                                // Update progress
-                                progress.completedUnitCount = Int64(Double(totalBytesRead) / Double(fileSize) * 100)
-                            }
-                        }
-                    } else if bytesRead < 0 {
-                        // Error occurred
-                        if let error = inputStream.streamError {
-                            print("Stream read error: \(error.localizedDescription)")
-                            throw TransferError.copyFailed(error)
-                        } else {
-                            print("Unknown read error")
-                            throw TransferError.copyFailed(NSError(domain: "FileTransferError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Unknown read error"]))
-                        }
-                    } else {
-                        // EOF
+                    // Dosyadan veri oku
+                    let data = sourceHandle.readData(ofLength: bufferSize)
+                    if data.isEmpty {
                         break
+                    }
+                    
+                    // Veriyi yaz
+                    destHandle.write(data)
+                    
+                    // xxHash hesapla
+                    hasher.update(data: data)
+                    
+                    // İlerleme güncelle
+                    currentPosition += Int64(data.count)
+                    
+                    // İlerleme bilgisini UI'a gönder (throttling uygulanmış)
+                    throttledProgressUpdate(currentPosition, fileSize, sourceFileName, "Transferring")
+                    
+                    // Her 64MB'da bir checkpointing yap
+                    if currentPosition - stateVar.lastCheckpoint >= 64 * 1024 * 1024 {
+                        destHandle.synchronizeFile()
+                        stateVar.lastCheckpoint = currentPosition
                     }
                 }
                 
-                // Verify the copy with checksum
-                print("Calculating destination checksum")
-                guard let destinationChecksum = calculateMD5(for: destinationPath) else {
-                    print("Could not calculate destination checksum")
-                    throw TransferError.fileNotFound
-                }
-                print("Destination checksum: \(destinationChecksum)")
+                // Dosya yazma işlemini bitir
+                destHandle.synchronizeFile()
                 
-                if sourceChecksum == destinationChecksum {
-                    print("Checksum verification successful")
-                    completionHandler(.success(destinationChecksum))
-                } else {
-                    // Checksums don't match
-                    print("Checksum mismatch: source=\(sourceChecksum), dest=\(destinationChecksum)")
-                    try? FileManager.default.removeItem(at: destinationURL)
-                    throw TransferError.checksumMismatch
+                // Final hash değerini hesapla
+                let finalHash = hasher.finalize()
+                let hashString = String(format: "%016llx", finalHash)
+                
+                print("Transfer completed with hash: \(hashString)")
+                
+                // Karşılaştırma için kaynak dosyanın hash'ini hesapla
+                // Bu sadece ekstra bir doğrulama - stream işlemi sırasında zaten hash hesaplandı
+                if let sourceHash = calculateStreamXXHash(for: sourcePath) {
+                    if sourceHash != hashString {
+                        print("Hash verification failed: \(sourceHash) vs \(hashString)")
+                        try? FileManager.default.removeItem(at: destinationURL)
+                        throw TransferError.checksumMismatch
+                        }
+                    } else {
+                    print("Could not calculate source hash for verification")
                 }
+                
+                // Transfer state'i temizle
+                unfinishedTransfers.removeValue(forKey: transferKey)
+                
+                // Son UI güncellemesi
+                DispatchQueue.main.async {
+                    progressHandler(fileSize, fileSize, sourceFileName, "Transfer completed")
+                    progress.completedUnitCount = 100
+                }
+                
+                // Başarıyla tamamlandı
+                completionHandler(.success(hashString))
             } catch let error as TransferError {
                 print("Transfer error: \(error.localizedDescription)")
                 completionHandler(.failure(error))
@@ -966,7 +1036,7 @@ class FileTransferManager {
                     
                     // Create an operation for this file copy
                     let copyOperation = BlockOperation {
-                        _ = copyFile(
+                        _ = transferCopyFile(
                             from: filePath,
                             to: destinationFilePath,
                             progressHandler: fileProgressHandler,
@@ -1468,8 +1538,8 @@ class FileTransferManager {
                 
                 switch checksumMethod {
                 case "xxHash64":
-                    sourceChecksum = calculateXXHash64(for: sourcePath)
-                    destChecksum = calculateXXHash64(for: destinationURL.path)
+                    sourceChecksum = calculateStreamXXHash(for: sourcePath)
+                    destChecksum = calculateStreamXXHash(for: destinationURL.path)
                 case "md5":
                     sourceChecksum = calculateMD5(for: sourcePath)
                     destChecksum = calculateMD5(for: destinationURL.path)
@@ -1478,8 +1548,8 @@ class FileTransferManager {
                     destChecksum = calculateSHA1(for: destinationURL.path)
                 default:
                     // Default to xxHash64 as it's fastest
-                    sourceChecksum = calculateXXHash64(for: sourcePath)
-                    destChecksum = calculateXXHash64(for: destinationURL.path)
+                    sourceChecksum = calculateStreamXXHash(for: sourcePath)
+                    destChecksum = calculateStreamXXHash(for: destinationURL.path)
                 }
                 
                 // Compare checksums

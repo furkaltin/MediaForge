@@ -1,0 +1,150 @@
+/* 
+  Localizable.strings
+  MediaForge
+  
+  English localization
+*/
+
+// MARK: - Common
+"yes" = "Yes";
+"no" = "No";
+"ok" = "OK";
+"cancel" = "Cancel";
+"save" = "Save";
+"delete" = "Delete";
+"reset" = "Reset";
+"apply" = "Apply";
+"edit" = "Edit";
+"search" = "Search";
+"loading" = "Loading";
+"retry" = "Retry";
+"continue" = "Continue";
+"back" = "Back";
+"next" = "Next";
+"finish" = "Finish";
+
+// MARK: - Settings
+"settings" = "Settings";
+"reset_all" = "Reset All";
+"reset_settings" = "Reset Settings";
+"reset_confirm_message" = "Are you sure you want to reset all settings to defaults? This cannot be undone.";
+
+// MARK: - Settings Sections
+"general" = "General";
+"advanced" = "Advanced";
+"verification" = "Verification";
+"appearance" = "Appearance";
+"language" = "Language";
+
+// MARK: - Settings General
+"general_settings" = "General Settings";
+"default_behavior" = "Default Behavior";
+"show_confirmation_dialogs" = "Show confirmation dialogs";
+"auto_start_transfer" = "Auto-start transfer when ready";
+"play_sound_on_complete" = "Play sound when transfer completes";
+"create_subfolder" = "Create subfolder for transfers";
+"generate_checksums" = "Generate checksums";
+"create_mhl" = "Create Media Hash List (MHL)";
+
+// MARK: - Settings Advanced
+"advanced_settings" = "Advanced Settings";
+"max_concurrent_transfers" = "Maximum concurrent transfers: %d";
+"use_native_copy" = "Use native file copy for large files";
+"skip_system_files" = "Skip system files";
+"show_debug_info" = "Show debug information";
+
+// MARK: - Settings Verification
+"verification_settings" = "Verification Settings";
+"default_checksum_method" = "Default checksum method";
+"verification_behavior" = "Verification behavior";
+"always_verify" = "Always verify after transfer";
+"stop_on_verification_failure" = "Stop on verification failure";
+"error_handling" = "Error Handling";
+"retry_failed_transfers" = "Retry failed transfers automatically";
+"max_retry_attempts" = "Max retry attempts:";
+
+// MARK: - Settings Appearance
+"appearance_settings" = "Appearance";
+"use_dark_mode" = "Use dark mode";
+"accent_color" = "Accent color";
+"animate_transitions" = "Animate transitions";
+"use_compact_view" = "Use compact view";
+"list_settings" = "List Settings";
+"default_sort_order" = "Default sort order";
+"disk_view_layout" = "Disk view layout";
+
+// MARK: - Settings Language
+"language_settings" = "Language Settings";
+"app_language" = "Application Language";
+"language_english" = "English";
+"language_turkish" = "Turkish";
+"language_restart_required" = "Restart the application to apply language changes";
+
+// MARK: - Transfers
+"transfer" = "Transfer";
+"transfers" = "Transfers";
+"source" = "Source";
+"sources" = "Sources";
+"destination" = "Destination";
+"destinations" = "Destinations";
+"add_source" = "Add Source";
+"add_destination" = "Add Destination";
+"start_transfer" = "Start Transfer";
+"cancel_transfer" = "Cancel Transfer";
+"pause_transfer" = "Pause Transfer";
+"resume_transfer" = "Resume Transfer";
+"transfer_status" = "Status";
+"transfer_progress" = "Progress";
+"status_completed" = "Completed";
+"status_failed" = "Failed";
+"status_canceled" = "Canceled";
+"status_paused" = "Paused";
+"status_queued" = "Queued";
+"status_preparing" = "Preparing";
+"status_copying" = "Copying";
+"status_verifying" = "Verifying";
+
+// MARK: - Disks
+"disk" = "Disk";
+"disks" = "Disks";
+"free_space" = "Free: %@";
+"used_space" = "Used: %@";
+"total_space" = "Total: %@";
+"eject" = "Eject";
+"format" = "Format";
+"not_enough_space" = "Not enough space";
+"refresh_disks" = "Refresh Disks";
+
+// MARK: - Errors
+"error" = "Error";
+"warning" = "Warning";
+"permission_error" = "Permission Error";
+"permission_error_message" = "MediaForge does not have permission to access %@. Check disk permissions in System Settings.";
+"copy_error" = "Copy Error";
+"verification_error" = "Verification Error";
+"checksum_mismatch" = "Checksum mismatch";
+"file_not_found" = "File not found";
+"insufficient_space" = "Insufficient disk space";
+"disk_ejected" = "Disk was ejected during transfer";
+"network_error" = "Network error";
+"unknown_error" = "Unknown error occurred";
+
+// MARK: - Checksum methods
+"xxhash64_fast" = "xxHash64 (Fast)";
+"md5_compatible" = "MD5 (Compatible)";
+"sha1_secure" = "SHA-1 (Secure)";
+
+// MARK: - Verification modes
+"standard" = "Standard";
+"verify_source" = "Verify Source";
+"double_verification" = "Double Verification";
+
+// MARK: - Sort options
+"name" = "Name";
+"size" = "Size";
+"date" = "Date";
+"type" = "Type";
+
+// MARK: - View types
+"grid" = "Grid";
+"list" = "List"; 

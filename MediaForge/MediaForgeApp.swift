@@ -11,6 +11,12 @@ import SwiftUI
 struct MediaForgeApp: App {
     @StateObject private var viewModel = MediaForgeViewModel()
     
+    // Initialize localization manager during app launch
+    init() {
+        // This triggers the singleton initialization
+        _ = LocalizationManager.shared
+    }
+    
     var body: some Scene {
         WindowGroup {
             ContentView()

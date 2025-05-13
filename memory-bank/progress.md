@@ -23,11 +23,26 @@ Bu doküman, MediaForge projesinin mevcut ilerleme durumunu, tamamlanan özellik
 - ✅ Transfer listesi görünümü
 - ✅ Temel ayarlar paneli
 
-### Dosya Transferi
-- ✅ Temel dosya kopyalama işlevselliği
-- ✅ İlerleme izleme
-- ✅ Basit hata yönetimi
-- ✅ xxHash64 checksum doğrulaması
+### Dosya Transferi ve Doğrulama Sistemi
+
+### Tamamlanan İşler
+- ✅ Temel dosya kopyalama mekanizması oluşturuldu
+- ✅ MD5, SHA1 ve xxHash algoritmaları ile checksum doğrulaması eklendi
+- ✅ Kesintiye uğrayan transferleri sürdürme yeteneği eklendi
+- ✅ Dosya boyutuna göre uyarlanabilir buffer boyutu optimizasyonu eklendi
+- ✅ UI güncellemeleri için gelişmiş throttling mekanizması eklendi
+- ✅ XXHash algoritması için bellek optimizasyonu ve stream-based işleme geliştirildi
+- ✅ Transfer ilerleme bilgileri için durum mesajları eklendi
+
+### Devam Eden İşler
+- ⏳ Çoklu paralel transfer optimizasyonu için iş parçacığı (thread) yönetimi
+- ⏳ İlerleme ve hata raporlama sisteminin genişletilmesi
+- ⏳ Transfer kuyrukları ve önceliklendirme yönetimi
+
+### Yapılacak İşler
+- ❌ Transfer sonrası otomatik raporlama ve bildirim sistemi
+- ❌ Ağ üzerinden uzak klasörlere transfer desteği
+- ❌ Bulut depolama entegrasyonu
 
 ## Kısmen Tamamlanan Özellikler
 

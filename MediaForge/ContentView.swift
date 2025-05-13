@@ -26,44 +26,82 @@ struct ContentView: View {
     
     var body: some View {
         ZStack {
-            // Dynamic gradient background
+            // Dynamic gradient background - enhanced for Sequoia
             backgroundGradient
                 .ignoresSafeArea()
             
             HStack(spacing: 0) {
-                // Sidebar
+                // Sidebar - improved for Sequoia
                 if showSidebar {
                     sidebar
-                        .frame(width: 220)
+                        .frame(width: 230)
                         .background(
                             ZStack {
-                                Color.black.opacity(0.4)
+                                // Modern Sequoia style blur with depth
+                                Color.black.opacity(0.2)
+                                    .background(.ultraThinMaterial)
                                 RoundedRectangle(cornerRadius: 20)
-                                    .fill(Color.black.opacity(0.2))
-                                    .blur(radius: 10)
-                                    .padding(.trailing, -10)
+                                    .fill(Color.black.opacity(0.1))
+                                    .background(
+                                        .thinMaterial,
+                                        in: RoundedRectangle(cornerRadius: 20)
+                                    )
+                                    .blur(radius: 1)
                             }
                         )
                         .clipShape(RoundedRectangle(cornerRadius: 20))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20)
+                                .stroke(
+                                    LinearGradient(
+                                        colors: [
+                                            Color.white.opacity(0.15),
+                                            Color.white.opacity(0.05),
+                                            Color.clear,
+                                            Color.clear
+                                        ],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    ),
+                                    lineWidth: 1
+                                )
+                        )
+                        .shadow(color: Color.black.opacity(0.2), radius: 15, x: 0, y: 5)
                         .transition(.move(edge: .leading))
                 }
                 
-                // Main content area with glass effect
+                // Main content area with enhanced Sequoia glass effect
                 ZStack {
-                    // Blurred content background
+                    // Modern blur and material effects
                     RoundedRectangle(cornerRadius: showSidebar ? 20 : 0)
-                        .fill(Color.black.opacity(0.1))
+                        .fill(Color.clear)
                         .background(
-                            .ultraThinMaterial,
+                            .regularMaterial,
                             in: RoundedRectangle(cornerRadius: showSidebar ? 20 : 0)
                         )
-                        .shadow(color: Color.black.opacity(0.3), radius: 10, x: 0, y: 10)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: showSidebar ? 20 : 0)
+                                .stroke(
+                                    LinearGradient(
+                                        colors: [
+                                            Color.white.opacity(0.1),
+                                            Color.white.opacity(0.05),
+                                            Color.clear,
+                                            Color.clear
+                                        ],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    ),
+                                    lineWidth: 1
+                                )
+                        )
+                        .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 8)
                     
                     // Content based on selected tab
                     VStack(spacing: 0) {
-                        // Toolbar
+                        // Toolbar - enhanced style
                         HStack {
-                            // Toggle sidebar button
+                            // Toggle sidebar button - improved style
                             Button {
                                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                                     showSidebar.toggle()
@@ -71,21 +109,30 @@ struct ContentView: View {
                             } label: {
                                 Image(systemName: showSidebar ? "sidebar.left" : "sidebar.right")
                                     .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(.white.opacity(0.8))
-                                    .frame(width: 30, height: 30)
-                                    .background(Color.white.opacity(0.1))
-                                    .clipShape(Circle())
+                                    .foregroundColor(.white.opacity(0.9))
+                                    .frame(width: 34, height: 34)
+                                    .background(
+                                        Circle()
+                                            .fill(Color.white.opacity(0.06))
+                                            .background(
+                                                .ultraThinMaterial,
+                                                in: Circle()
+                                            )
+                                    )
                             }
                             .buttonStyle(.plain)
+                            .contentShape(Circle())
+                            .help(showSidebar ? "Kenar Çubuğunu Gizle" : "Kenar Çubuğunu Göster")
                             
-                            // Status message
+                            // Status message - improved style
                             if !viewModel.statusMessage.isEmpty {
                                 HStack(spacing: 8) {
                                     Image(systemName: "info.circle.fill")
                                         .foregroundColor(.blue)
+                                        .font(.system(size: 14))
                                     Text(viewModel.statusMessage)
                                         .font(.system(size: 14))
-                                        .foregroundColor(.white.opacity(0.9))
+                                        .foregroundColor(.primary)
                                         .lineLimit(1)
                                     
                                     Button {
@@ -93,36 +140,50 @@ struct ContentView: View {
                                     } label: {
                                         Image(systemName: "xmark.circle.fill")
                                             .font(.system(size: 14))
-                                            .foregroundColor(.white.opacity(0.6))
+                                            .foregroundColor(.primary.opacity(0.6))
                                     }
                                     .buttonStyle(.plain)
+                                    .contentShape(Circle())
                                 }
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
-                                .background(Color.blue.opacity(0.1))
-                                .cornerRadius(20)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.blue.opacity(0.1))
+                                        .background(
+                                            .ultraThinMaterial,
+                                            in: Capsule()
+                                        )
+                                )
                             }
                             
                             Spacer()
                             
-                            // Status information
+                            // Status information - improved style
                             HStack(spacing: 15) {
-                                // Active transfers badge
+                                // Active transfers badge - improved style
                                 if !viewModel.activeTransfers.isEmpty {
                                     HStack(spacing: 5) {
                                         Image(systemName: "arrow.up.arrow.down.circle.fill")
                                             .foregroundColor(.green)
-                                        Text("\(viewModel.activeTransfers.count) Active")
+                                            .font(.system(size: 14))
+                                        Text("\(viewModel.activeTransfers.count) Aktif")
                                             .font(.system(size: 14, weight: .medium))
-                                            .foregroundColor(.white.opacity(0.9))
+                                            .foregroundColor(.primary.opacity(0.9))
                                     }
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 5)
-                                    .background(Color.black.opacity(0.2))
-                                    .cornerRadius(20)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        Capsule()
+                                            .fill(Color.green.opacity(0.1))
+                                            .background(
+                                                .ultraThinMaterial,
+                                                in: Capsule()
+                                            )
+                                    )
                                 }
                                 
-                                // Refresh button
+                                // Refresh button - improved style
                                 Button {
                                     withAnimation {
                                         viewModel.refreshDisks()
@@ -130,12 +191,20 @@ struct ContentView: View {
                                 } label: {
                                     Image(systemName: "arrow.clockwise")
                                         .font(.system(size: 14, weight: .medium))
-                                        .foregroundColor(.white.opacity(0.8))
-                                        .frame(width: 30, height: 30)
-                                        .background(Color.white.opacity(0.1))
-                                        .clipShape(Circle())
+                                        .foregroundColor(.primary.opacity(0.8))
+                                        .frame(width: 34, height: 34)
+                                        .background(
+                                            Circle()
+                                                .fill(Color.white.opacity(0.06))
+                                                .background(
+                                                    .ultraThinMaterial,
+                                                    in: Circle()
+                                                )
+                                        )
                                 }
                                 .buttonStyle(.plain)
+                                .contentShape(Circle())
+                                .help("Diskleri Yenile")
                             }
                         }
                         .padding(.horizontal, 20)
@@ -161,7 +230,6 @@ struct ContentView: View {
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: showSidebar ? 20 : 0))
-                .shadow(color: Color.black.opacity(0.3), radius: 10, x: 0, y: 10)
             }
             .padding(10)
         }
@@ -210,13 +278,13 @@ struct ContentView: View {
         }
         .alert(isPresented: $viewModel.showPermissionAlert) {
             Alert(
-                title: Text("Full Disk Access Required"),
-                message: Text("MediaForge needs full disk access to \(viewModel.permissionErrorDisk). Please grant permission in System Preferences > Security & Privacy > Privacy > Full Disk Access."),
-                primaryButton: .default(Text("Open System Preferences")) {
+                title: Text("Tam Disk Erişimi Gerekli"),
+                message: Text("MediaForge, \(viewModel.permissionErrorDisk) diskine tam erişime ihtiyaç duyuyor. Lütfen Sistem Ayarları > Gizlilik ve Güvenlik > Tam Disk Erişimi bölümünden izin verin."),
+                primaryButton: .default(Text("Sistem Ayarlarını Aç")) {
                     // Open the Security & Privacy pane in System Preferences
                     NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!)
                 },
-                secondaryButton: .cancel()
+                secondaryButton: .cancel(Text("İptal"))
             )
         }
         .sheet(isPresented: $showingElementReview) {
@@ -231,22 +299,23 @@ struct ContentView: View {
         }
     }
     
-    // Sidebar view
+    // Sidebar view - enhanced style for Sequoia
     var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Logo area with improved styling
-            VStack(alignment: .leading, spacing: 5) {
-                Text("MEDIA")
-                    .font(.system(size: 24, weight: .black))
-                    .foregroundColor(.white)
-                
-                Text("FORGE")
-                    .font(.system(size: 24, weight: .light))
-                    .foregroundColor(.white.opacity(0.8))
-                    .offset(x: 10)
+            // Logo area with improved Sequoia styling
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 4) {
+                    Text("MEDIA")
+                        .font(.system(size: 24, weight: .black))
+                        .foregroundColor(.white)
+                    
+                    Text("FORGE")
+                        .font(.system(size: 24, weight: .light))
+                        .foregroundColor(.white.opacity(0.8))
+                }
                 
                 Text("Professional Media Transfer Tool")
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.white.opacity(0.6))
                     .padding(.top, 2)
             }
@@ -254,34 +323,43 @@ struct ContentView: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 25)
             .background(
-                LinearGradient(
-                    gradient: Gradient(colors: [
-                        Color(red: 0.12, green: 0.12, blue: 0.18),
-                        Color(red: 0.15, green: 0.15, blue: 0.22)
-                    ]),
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
+                ZStack {
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color(red: 0.15, green: 0.15, blue: 0.22).opacity(0.7),
+                            Color(red: 0.12, green: 0.12, blue: 0.18).opacity(0.4)
+                        ]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    
+                    // Subtle pattern for depth
+                    Color.white.opacity(0.02)
+                        .background(
+                            .ultraThinMaterial,
+                            in: Rectangle()
+                        )
+                }
             )
             
             Divider()
                 .background(Color.white.opacity(0.15))
                 .padding(.horizontal, 20)
             
-            // Navigation menu with improved styling
+            // Navigation menu with improved Sequoia styling
             VStack(spacing: 8) {
                 Spacer().frame(height: 10)
                 navButton(title: "Dashboard", icon: "square.grid.2x2", tab: .dashboard)
-                navButton(title: "Disks", icon: "externaldrive.fill", tab: .disks)
-                navButton(title: "Transfers", icon: "arrow.up.arrow.down", tab: .transfers)
-                navButton(title: "Presets", icon: "list.bullet.rectangle", tab: .presets)
-                navButton(title: "Settings", icon: "gear", tab: .settings)
+                navButton(title: "Diskler", icon: "externaldrive.fill", tab: .disks)
+                navButton(title: "Transferler", icon: "arrow.up.arrow.down", tab: .transfers)
+                navButton(title: "Hazır Ayarlar", icon: "list.bullet.rectangle", tab: .presets)
+                navButton(title: "Ayarlar", icon: "gear", tab: .settings)
             }
             .padding(.top, 20)
             
             Spacer()
             
-            // Status section with improved styling
+            // Status section with improved Sequoia styling
             VStack(alignment: .leading, spacing: 15) {
                 HStack {
                     Circle()
@@ -289,7 +367,7 @@ struct ContentView: View {
                         .frame(width: 10, height: 10)
                         .shadow(color: viewModel.activeTransfers.isEmpty ? Color.green.opacity(0.5) : Color.orange.opacity(0.5), radius: 5)
                     
-                    Text(viewModel.activeTransfers.isEmpty ? "System Ready" : "Transfers Active")
+                    Text(viewModel.activeTransfers.isEmpty ? "Sistem Hazır" : "Transferler Aktif")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(.white.opacity(0.9))
                 }
@@ -298,6 +376,10 @@ struct ContentView: View {
                 .background(
                     RoundedRectangle(cornerRadius: 12)
                         .fill(Color.black.opacity(0.2))
+                        .background(
+                            .ultraThinMaterial,
+                            in: RoundedRectangle(cornerRadius: 12)
+                        )
                         .overlay(
                             RoundedRectangle(cornerRadius: 12)
                                 .stroke(
@@ -315,7 +397,7 @@ struct ContentView: View {
                 )
                 
                 HStack {
-                    Text("Disks Connected:")
+                    Text("Bağlı Diskler:")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(.white.opacity(0.7))
                     
@@ -324,7 +406,7 @@ struct ContentView: View {
                     Text("\(viewModel.availableDisks.count)")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.white)
-                        .frame(width: 26, height: 26)
+                        .frame(width: 28, height: 28)
                         .background(
                             Circle()
                                 .fill(
@@ -337,6 +419,10 @@ struct ContentView: View {
                                         endPoint: .bottomTrailing
                                     )
                                 )
+                                .background(
+                                    .ultraThinMaterial,
+                                    in: Circle()
+                                )
                                 .shadow(color: Color.black.opacity(0.3), radius: 2)
                         )
                 }
@@ -345,61 +431,28 @@ struct ContentView: View {
             .padding(.bottom, 25)
             .padding(.horizontal, 10)
             .background(
-                LinearGradient(
-                    gradient: Gradient(colors: [
-                        Color(red: 0.12, green: 0.12, blue: 0.18).opacity(0.5),
-                        Color(red: 0.15, green: 0.15, blue: 0.22).opacity(0.8)
-                    ]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-        }
-        .background(
-            ZStack {
-                // Base background
-                LinearGradient(
-                    gradient: Gradient(colors: [
-                        Color(red: 0.15, green: 0.15, blue: 0.22),
-                        Color(red: 0.10, green: 0.10, blue: 0.15)
-                    ]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                
-                // Subtle pattern overlay
-                Rectangle()
-                    .fill(Color.white.opacity(0.03))
-                    .mask(
-                        Image(systemName: "rectangle.grid.3x2")
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .opacity(0.3)
-                    )
-                    .blur(radius: 0.5)
-            }
-        )
-        .overlay(
-            Rectangle()
-                .stroke(
+                ZStack {
                     LinearGradient(
                         gradient: Gradient(colors: [
-                            Color.white.opacity(0.1),
-                            Color.white.opacity(0.05),
-                            Color.clear
+                            Color(red: 0.12, green: 0.12, blue: 0.18).opacity(0.4),
+                            Color(red: 0.15, green: 0.15, blue: 0.22).opacity(0.6)
                         ]),
                         startPoint: .top,
                         endPoint: .bottom
-                    ),
-                    lineWidth: 1
-                )
-                .frame(width: 1),
-            alignment: .trailing
-        )
-        .contentShape(Rectangle())
+                    )
+                    
+                    // Subtle material effect for depth
+                    Color.clear
+                        .background(
+                            .ultraThinMaterial,
+                            in: Rectangle()
+                        )
+                }
+            )
+        }
     }
     
-    // Navigation button with improved styling
+    // Navigation button with improved Sequoia styling
     func navButton(title: String, icon: String, tab: Tab) -> some View {
         Button {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
@@ -407,7 +460,7 @@ struct ContentView: View {
             }
         } label: {
             HStack(spacing: 14) {
-                // Icon with improved styling
+                // Icon with improved Sequoia styling
                 ZStack {
                     if selectedTab == tab {
                         Circle()
@@ -451,15 +504,10 @@ struct ContentView: View {
                 ZStack {
                     if selectedTab == tab {
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(
-                                LinearGradient(
-                                    gradient: Gradient(colors: [
-                                        Color(red: 0.2, green: 0.2, blue: 0.33).opacity(0.9),
-                                        Color(red: 0.15, green: 0.15, blue: 0.25).opacity(0.8)
-                                    ]),
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
+                            .fill(Color.clear)
+                            .background(
+                                .ultraThinMaterial,
+                                in: RoundedRectangle(cornerRadius: 12)
                             )
                             .overlay(
                                 RoundedRectangle(cornerRadius: 12)
@@ -476,7 +524,7 @@ struct ContentView: View {
                                         lineWidth: 1
                                     )
                             )
-                            .shadow(color: Color.black.opacity(0.3), radius: 2, x: 0, y: 2)
+                            .shadow(color: Color.black.opacity(0.2), radius: 2, x: 0, y: 2)
                     }
                 }
             )
@@ -487,32 +535,48 @@ struct ContentView: View {
         .contentShape(Rectangle())
     }
     
-    // Background gradient with animation
+    // Background gradient with enhanced animation for Sequoia
     var backgroundGradient: some View {
-        LinearGradient(
-            gradient: Gradient(colors: [
-                Color(red: 0.05, green: 0.05, blue: 0.1),
-                Color(red: 0.1, green: 0.05, blue: 0.15),
-                Color(red: 0.05, green: 0.1, blue: 0.2)
-            ]),
-            startPoint: animateBackground ? .topLeading : .bottomLeading,
-            endPoint: animateBackground ? .bottomTrailing : .topTrailing
-        )
-        .overlay(
+        ZStack {
+            // Base gradient with subtle Sequoia style
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color(red: 0.08, green: 0.08, blue: 0.12),
+                    Color(red: 0.12, green: 0.08, blue: 0.18),
+                    Color(red: 0.08, green: 0.12, blue: 0.22)
+                ]),
+                startPoint: animateBackground ? .topLeading : .bottomLeading,
+                endPoint: animateBackground ? .bottomTrailing : .topTrailing
+            )
+            
+            // Enhanced ambient light effects
             ZStack {
+                // Ambiental glow spots
                 Circle()
-                    .fill(Color.purple.opacity(0.1))
+                    .fill(Color.purple.opacity(0.12))
                     .frame(width: 300, height: 300)
-                    .blur(radius: 80)
+                    .blur(radius: 90)
                     .offset(x: animateBackground ? 200 : -200, y: -100)
                 
                 Circle()
-                    .fill(Color.blue.opacity(0.1))
+                    .fill(Color.blue.opacity(0.15))
                     .frame(width: 400, height: 400)
-                    .blur(radius: 80)
+                    .blur(radius: 90)
                     .offset(x: animateBackground ? -250 : 250, y: 300)
+                
+                // Additional subtle glow for depth
+                Circle()
+                    .fill(Color.indigo.opacity(0.1))
+                    .frame(width: 350, height: 350)
+                    .blur(radius: 100)
+                    .offset(x: animateBackground ? 100 : -100, y: animateBackground ? 200 : -200)
             }
-        )
+            
+            // Subtle noise texture overlay for depth
+            Rectangle()
+                .fill(Color.white.opacity(0.01))
+                .blendMode(.overlay)
+        }
     }
     
     // Dashboard view
@@ -521,11 +585,11 @@ struct ContentView: View {
             // Dashboard header
             HStack {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("Media Transfer Dashboard")
+                    Text("Medya Transfer Panosu")
                         .font(.system(size: 24, weight: .bold))
                         .foregroundColor(.white)
                     
-                    Text("Monitor and manage your media transfers")
+                    Text("Medya transferlerinizi izleyin ve yönetin")
                         .font(.system(size: 14))
                         .foregroundColor(.white.opacity(0.7))
                 }
@@ -538,36 +602,36 @@ struct ContentView: View {
             HStack(spacing: 20) {
                 // Disk stats
                 statsCard(
-                    title: "Disks",
+                    title: "Diskler",
                     value: "\(viewModel.availableDisks.count)",
-                    detail: "Connected",
+                    detail: "Bağlı",
                     icon: "externaldrive.fill",
                     color: .blue
                 )
                 
                 // Source stats
                 statsCard(
-                    title: "Sources",
+                    title: "Kaynaklar",
                     value: "\(viewModel.sources.count)",
-                    detail: "Selected",
+                    detail: "Seçili",
                     icon: "arrow.up.doc",
                     color: .purple
                 )
                 
                 // Destination stats
                 statsCard(
-                    title: "Destinations",
+                    title: "Hedefler",
                     value: "\(viewModel.destinations.count)",
-                    detail: "Selected",
+                    detail: "Seçili",
                     icon: "arrow.down.doc",
                     color: .green
                 )
                 
                 // Transfer stats
                 statsCard(
-                    title: "Transfers",
+                    title: "Transferler",
                     value: "\(viewModel.activeTransfers.count)",
-                    detail: "Active",
+                    detail: "Aktif",
                     icon: "arrow.triangle.2.circlepath",
                     color: .orange
                 )
@@ -576,7 +640,7 @@ struct ContentView: View {
             
             // Quick actions
             VStack(alignment: .leading, spacing: 15) {
-                Text("Quick Actions")
+                Text("Hızlı Eylemler")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(.white)
                     .padding(.horizontal, 20)
@@ -584,17 +648,17 @@ struct ContentView: View {
                 HStack(spacing: 15) {
                     // Setup disks action
                     actionButton(
-                        title: "Select Devices",
+                        title: "Cihazları Seç",
                         icon: "externaldrive.badge.plus",
-                        description: "Configure sources and destinations",
+                        description: "Kaynakları ve hedefleri yapılandır",
                         action: { selectedTab = .disks }
                     )
                     
                     // Start transfer action
                     actionButton(
-                        title: "Start Transfer",
+                        title: "Transfer Başlat",
                         icon: "arrow.up.arrow.down.circle",
-                        description: "Begin a new media transfer",
+                        description: "Yeni bir medya transferi başlat",
                         isDisabled: viewModel.sources.isEmpty || viewModel.destinations.isEmpty,
                         action: {
                             viewModel.createTransfers()
@@ -605,9 +669,9 @@ struct ContentView: View {
                     
                     // View transfers action
                     actionButton(
-                        title: "View Transfers",
+                        title: "Transferleri Görüntüle",
                         icon: "list.bullet.rectangle",
-                        description: "Monitor active and completed transfers",
+                        description: "Aktif ve tamamlanmış transferleri izle",
                         action: { selectedTab = .transfers }
                     )
                 }
@@ -620,7 +684,7 @@ struct ContentView: View {
             if !viewModel.activeTransfers.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        Text("Active Transfer Status")
+                        Text("Aktif Transfer Durumu")
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(.white)
                         
@@ -629,7 +693,7 @@ struct ContentView: View {
                         Button {
                             selectedTab = .transfers
                         } label: {
-                            Text("View All")
+                            Text("Tümünü Görüntüle")
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundColor(.white.opacity(0.7))
                         }
@@ -668,41 +732,33 @@ struct ContentView: View {
                             }
                             .padding(.vertical, 8)
                             .padding(.horizontal, 15)
-                            .background(Color.black.opacity(0.2))
-                            .cornerRadius(10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(Color.black.opacity(0.2))
+                                    .background(
+                                        .ultraThinMaterial,
+                                        in: RoundedRectangle(cornerRadius: 10)
+                                    )
+                            )
                         }
                     }
                 }
                 .padding(20)
-                .background(Color.black.opacity(0.2))
-                .cornerRadius(15)
+                .background(
+                    RoundedRectangle(cornerRadius: 15)
+                        .fill(Color.black.opacity(0.1))
+                        .background(
+                            .ultraThinMaterial,
+                            in: RoundedRectangle(cornerRadius: 15)
+                        )
+                )
                 .padding(.horizontal, 20)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
     
-    // Settings view placeholder
-    var settingsView: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "gear")
-                .font(.system(size: 40))
-                .foregroundColor(.white.opacity(0.5))
-            
-            Text("Settings")
-                .font(.system(size: 24, weight: .bold))
-                .foregroundColor(.white)
-            
-            Text("Application settings and preferences will appear here.")
-                .font(.system(size: 16))
-                .foregroundColor(.white.opacity(0.7))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-    
-    // Stats card component
+    // Stats card component - Sequoia style update
     func statsCard(title: String, value: String, detail: String, icon: String, color: Color) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -731,7 +787,11 @@ struct ContentView: View {
         .background(
             ZStack {
                 RoundedRectangle(cornerRadius: 15)
-                    .fill(Color.black.opacity(0.3))
+                    .fill(Color.clear)
+                    .background(
+                        .ultraThinMaterial,
+                        in: RoundedRectangle(cornerRadius: 15)
+                    )
                 
                 RoundedRectangle(cornerRadius: 15)
                     .stroke(color.opacity(0.3), lineWidth: 1)
@@ -740,7 +800,7 @@ struct ContentView: View {
         .frame(maxWidth: .infinity)
     }
     
-    // Action button component
+    // Action button component - Sequoia style update
     func actionButton(title: String, icon: String, description: String, isDisabled: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 10) {
@@ -771,7 +831,11 @@ struct ContentView: View {
             .background(
                 ZStack {
                     RoundedRectangle(cornerRadius: 15)
-                        .fill(isDisabled ? Color.black.opacity(0.2) : Color(red: 0.15, green: 0.15, blue: 0.2))
+                        .fill(Color.clear)
+                        .background(
+                            .ultraThinMaterial,
+                            in: RoundedRectangle(cornerRadius: 15)
+                        )
                     
                     RoundedRectangle(cornerRadius: 15)
                         .stroke(isDisabled ? Color.gray.opacity(0.2) : Color.white.opacity(0.1), lineWidth: 1)

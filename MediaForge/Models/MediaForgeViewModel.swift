@@ -107,6 +107,15 @@ class MediaForgeViewModel: ObservableObject {
     @Published var selectedSourceDisk: Disk?
     @Published var selectedDestinationDisk: Disk?
     
+    // Language settings
+    @Published var appLanguage: String = LocalizationManager.shared.currentLanguage.rawValue {
+        didSet {
+            if let language = AppLanguage(rawValue: appLanguage) {
+                LocalizationManager.shared.setLanguage(language)
+            }
+        }
+    }
+    
     /// Initialize the view model and load initial disk data
     init() {
         // Initialize Disk Arbitration framework
@@ -136,6 +145,14 @@ class MediaForgeViewModel: ObservableObject {
             object: nil
         )
         
+        // Set up notification listener for language change
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleLanguageChangeNotification),
+            name: Notification.Name("LanguageChanged"),
+            object: nil
+        )
+        
         // Load saved presets
         loadPresets()
     }
@@ -147,6 +164,11 @@ class MediaForgeViewModel: ObservableObject {
     
     @objc func handleRefreshDisksNotification() {
         refreshDisks()
+    }
+    
+    @objc func handleLanguageChangeNotification() {
+        // Update UI elements when language changes
+        objectWillChange.send()
     }
     
     /// Refresh the list of available disks
@@ -1184,5 +1206,15 @@ class MediaForgeViewModel: ObservableObject {
         case incrementAllCounters
         case prefixAllNames(String)
         case convertAllToType(CustomElement.ElementType)
+    }
+    
+    /// Reset all settings to defaults
+    private func resetSettings() {
+        // ... existing code ...
+        
+        // Reset language settings
+        appLanguage = AppLanguage.system.rawValue
+        
+        // ... existing code ...
     }
 } 

@@ -1,0 +1,150 @@
+/* 
+  Localizable.strings
+  MediaForge
+  
+  Turkish localization
+*/
+
+// MARK: - Common
+"yes" = "Evet";
+"no" = "Hayır";
+"ok" = "Tamam";
+"cancel" = "İptal";
+"save" = "Kaydet";
+"delete" = "Sil";
+"reset" = "Sıfırla";
+"apply" = "Uygula";
+"edit" = "Düzenle";
+"search" = "Ara";
+"loading" = "Yükleniyor";
+"retry" = "Tekrar Dene";
+"continue" = "Devam Et";
+"back" = "Geri";
+"next" = "İleri";
+"finish" = "Bitir";
+
+// MARK: - Settings
+"settings" = "Ayarlar";
+"reset_all" = "Tümünü Sıfırla";
+"reset_settings" = "Ayarları Sıfırla";
+"reset_confirm_message" = "Tüm ayarları varsayılanlara sıfırlamak istediğinizden emin misiniz? Bu işlem geri alınamaz.";
+
+// MARK: - Settings Sections
+"general" = "Genel";
+"advanced" = "Gelişmiş";
+"verification" = "Doğrulama";
+"appearance" = "Görünüm";
+"language" = "Dil";
+
+// MARK: - Settings General
+"general_settings" = "Genel Ayarlar";
+"default_behavior" = "Varsayılan Davranış";
+"show_confirmation_dialogs" = "Onay diyaloglarını göster";
+"auto_start_transfer" = "Hazır olduğunda transferi otomatik başlat";
+"play_sound_on_complete" = "Transfer tamamlandığında ses çal";
+"create_subfolder" = "Transferler için alt klasör oluştur";
+"generate_checksums" = "Sağlama toplamları oluştur";
+"create_mhl" = "Media Hash List (MHL) oluştur";
+
+// MARK: - Settings Advanced
+"advanced_settings" = "Gelişmiş Ayarlar";
+"max_concurrent_transfers" = "Maksimum eşzamanlı transfer: %d";
+"use_native_copy" = "Büyük dosyalar için yerel kopyalama kullan";
+"skip_system_files" = "Sistem dosyalarını atla";
+"show_debug_info" = "Hata ayıklama bilgilerini göster";
+
+// MARK: - Settings Verification
+"verification_settings" = "Doğrulama Ayarları";
+"default_checksum_method" = "Varsayılan sağlama toplamı yöntemi";
+"verification_behavior" = "Doğrulama davranışı";
+"always_verify" = "Transfer sonrası her zaman doğrula";
+"stop_on_verification_failure" = "Doğrulama başarısız olduğunda durdur";
+"error_handling" = "Hata İşleme";
+"retry_failed_transfers" = "Başarısız transferleri otomatik olarak yeniden dene";
+"max_retry_attempts" = "Maksimum yeniden deneme sayısı:";
+
+// MARK: - Settings Appearance
+"appearance_settings" = "Görünüm";
+"use_dark_mode" = "Karanlık mod kullan";
+"accent_color" = "Vurgu rengi";
+"animate_transitions" = "Geçişleri canlandır";
+"use_compact_view" = "Kompakt görünüm kullan";
+"list_settings" = "Liste Ayarları";
+"default_sort_order" = "Varsayılan sıralama düzeni";
+"disk_view_layout" = "Disk görünüm düzeni";
+
+// MARK: - Settings Language
+"language_settings" = "Dil Ayarları";
+"app_language" = "Uygulama Dili";
+"language_english" = "İngilizce";
+"language_turkish" = "Türkçe";
+"language_restart_required" = "Dil değişikliklerini uygulamak için uygulamayı yeniden başlatın";
+
+// MARK: - Transfers
+"transfer" = "Transfer";
+"transfers" = "Transferler";
+"source" = "Kaynak";
+"sources" = "Kaynaklar";
+"destination" = "Hedef";
+"destinations" = "Hedefler";
+"add_source" = "Kaynak Ekle";
+"add_destination" = "Hedef Ekle";
+"start_transfer" = "Transferi Başlat";
+"cancel_transfer" = "Transferi İptal Et";
+"pause_transfer" = "Transferi Durdur";
+"resume_transfer" = "Transferi Sürdür";
+"transfer_status" = "Durum";
+"transfer_progress" = "İlerleme";
+"status_completed" = "Tamamlandı";
+"status_failed" = "Başarısız";
+"status_canceled" = "İptal Edildi";
+"status_paused" = "Duraklatıldı";
+"status_queued" = "Sırada";
+"status_preparing" = "Hazırlanıyor";
+"status_copying" = "Kopyalanıyor";
+"status_verifying" = "Doğrulanıyor";
+
+// MARK: - Disks
+"disk" = "Disk";
+"disks" = "Diskler";
+"free_space" = "Boş: %@";
+"used_space" = "Kullanılan: %@";
+"total_space" = "Toplam: %@";
+"eject" = "Çıkar";
+"format" = "Biçimlendir";
+"not_enough_space" = "Yeterli alan yok";
+"refresh_disks" = "Diskleri Yenile";
+
+// MARK: - Errors
+"error" = "Hata";
+"warning" = "Uyarı";
+"permission_error" = "İzin Hatası";
+"permission_error_message" = "MediaForge'un %@ erişim izni yok. Sistem Ayarlarında disk izinlerini kontrol edin.";
+"copy_error" = "Kopyalama Hatası";
+"verification_error" = "Doğrulama Hatası";
+"checksum_mismatch" = "Sağlama toplamı uyuşmazlığı";
+"file_not_found" = "Dosya bulunamadı";
+"insufficient_space" = "Yetersiz disk alanı";
+"disk_ejected" = "Transfer sırasında disk çıkarıldı";
+"network_error" = "Ağ hatası";
+"unknown_error" = "Bilinmeyen bir hata oluştu";
+
+// MARK: - Checksum methods
+"xxhash64_fast" = "xxHash64 (Hızlı)";
+"md5_compatible" = "MD5 (Uyumlu)";
+"sha1_secure" = "SHA-1 (Güvenli)";
+
+// MARK: - Verification modes
+"standard" = "Standart";
+"verify_source" = "Kaynağı Doğrula";
+"double_verification" = "Çift Doğrulama";
+
+// MARK: - Sort options
+"name" = "İsim";
+"size" = "Boyut";
+"date" = "Tarih";
+"type" = "Tür";
+
+// MARK: - View types
+"grid" = "Izgara";
+"list" = "Liste"; 
