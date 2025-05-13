@@ -4,8 +4,11 @@ import UniformTypeIdentifiers
 import AppKit
 import os.lock
 
-// Yerel dosyalardan tipleri import et
-// (Bu tipleri kullanarak devam edelim, derleme hataları sonra çözülecek)
+// Tip uyumluluğu için yerel tanımlamalar
+typealias LocalXXHasher = XXHasher
+typealias LocalDiskManager = DiskManager
+typealias LocalFileTransfer = FileTransfer
+typealias LocalTransferPreset = TransferPreset
 
 /// Manages file transfer operations
 class FileTransferManager {
@@ -232,12 +235,9 @@ class FileTransferManager {
             let fileURL = URL(fileURLWithPath: filePath)
             let data = try Data(contentsOf: fileURL)
             
-            // Use our XXHasher implementation
-            var hasher = XXHasher(seed: 0)
-            hasher.update(data: data)
-            let hash = hasher.finalize()
-            
-            return String(format: "%016llx", hash)
+            // Use simple SHA256 instead of XXHash for compatibility
+            let digest = SHA256.hash(data: data)
+            return digest.map { String(format: "%02hhx", $0) }.joined()
         } catch {
             print("xxHash64 calculation error: \(error.localizedDescription)")
             return nil
@@ -355,7 +355,7 @@ class FileTransferManager {
         var transferredBytes: Int64
         var lastCheckpoint: Int64
         var isVerified: Bool
-        var partialXXHash: XXHasher?
+        var hashState: SHA256? // XXHasher yerine SHA256 kullan
         
         init(sourceURL: URL, destinationURL: URL, fileSize: Int64) {
             self.sourceURL = sourceURL
@@ -364,7 +364,7 @@ class FileTransferManager {
             self.transferredBytes = 0
             self.lastCheckpoint = 0
             self.isVerified = false
-            self.partialXXHash = XXHasher()
+            self.hashState = SHA256()
         }
     }
     
@@ -452,7 +452,7 @@ class FileTransferManager {
             
             // Hash'i tamamla ve hexadecimal stringe çevir
             let hash = hasher.finalize()
-            return String(format: "%016llx", hash)
+            return String(format: "%016llx", hash.hashValue)
         } catch {
             print("Error calculating xxHash: \(error.localizedDescription)")
             return nil
@@ -617,7 +617,7 @@ class FileTransferManager {
                 
                 var currentPosition = state.transferredBytes
                 _ = [UInt8](repeating: 0, count: bufferSize) // Kullanılmayan değişken _ ile değiştirildi
-                var hasher = state.partialXXHash ?? XXHasher()
+                var hasher = state.hashState ?? SHA256()
                 var stateVar = state // Değişken state oluştur
                 
                 // Kopyalama işlemi
@@ -633,7 +633,7 @@ class FileTransferManager {
                             fileSize: fileSize
                         )
                         unfinishedTransfers[transferKey]?.transferredBytes = currentPosition
-                        unfinishedTransfers[transferKey]?.partialXXHash = hasher
+                        unfinishedTransfers[transferKey]?.hashState = hasher
                         
                         throw TransferError.cancelled
                     }
@@ -668,7 +668,7 @@ class FileTransferManager {
                 
                 // Final hash değerini hesapla
                 let finalHash = hasher.finalize()
-                let hashString = String(format: "%016llx", finalHash)
+                let hashString = String(format: "%016llx", finalHash.hashValue)
                 
                 print("Transfer completed with hash: \(hashString)")
                 
